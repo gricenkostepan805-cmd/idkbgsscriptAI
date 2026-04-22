@@ -1,0 +1,209 @@
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local LP = Players.LocalPlayer
+local WS = game:GetService("Workspace")
+
+-- Ресурсы
+local EGGS_PATH = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Eggs") or RS:FindFirstChild("Eggs", true)
+local REMOTE = RS:FindFirstChild("RemoteEvent", true)
+local ACTUAL_PICKUPS = WS:FindFirstChild("Pickups")
+
+local selectedEgg = ""
+local isHatching = false
+local isCollapsed = false
+local fastOpenEnabled = false
+local autoCollectEnabled = false
+
+-- 🎨 ИНТЕРФЕЙС
+local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
+ScreenGui.Name = "BGS_Script_Using_Gemini"
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 360, 0, 250)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -125)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame)
+
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 25)
+Header.BackgroundColor3 = Color3.fromRGB(35, 45, 75)
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.Text = "Atlas Elite v3.2 (True Farm)"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 11
+Title.BackgroundTransparency = 1
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local CollapseBtn = Instance.new("TextButton", Header)
+CollapseBtn.Size = UDim2.new(0, 30, 0, 25)
+CollapseBtn.Position = UDim2.new(1, -30, 0, 0)
+CollapseBtn.BackgroundTransparency = 1
+CollapseBtn.Text = "-"
+CollapseBtn.TextColor3 = Color3.new(1, 1, 1)
+
+local Holder = Instance.new("Frame", MainFrame)
+Holder.Size = UDim2.new(1, 0, 1, -25)
+Holder.Position = UDim2.new(0, 0, 0, 25)
+Holder.BackgroundTransparency = 1
+
+local Sidebar = Instance.new("Frame", Holder)
+Sidebar.Size = UDim2.new(0, 90, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Instance.new("UIListLayout", Sidebar)
+
+local Content = Instance.new("Frame", Holder)
+Content.Position = UDim2.new(0, 95, 0, 5)
+Content.Size = UDim2.new(1, -100, 1, -10)
+Content.BackgroundTransparency = 1
+
+local Tabs = {}
+local function createTab(name)
+    local t = Instance.new("Frame", Content)
+    t.Size = UDim2.new(1, 0, 1, 0)
+    t.BackgroundTransparency = 1
+    t.Visible = false
+    Tabs[name] = t
+    local btn = Instance.new("TextButton", Sidebar)
+    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.BackgroundTransparency = 1
+    btn.Text = name
+    btn.TextColor3 = Color3.new(0.7, 0.7, 0.7)
+    btn.Font = Enum.Font.Gotham
+    btn.MouseButton1Click:Connect(function()
+        for _, v in pairs(Tabs) do v.Visible = false end
+        t.Visible = true
+    end)
+    return t
+end
+
+local MainTab = createTab("Main")
+local FarmingTab = createTab("Farming")
+MainTab.Visible = true
+
+local function createToggle(parent, text, pos)
+    local b = Instance.new("TextButton", parent)
+    b.Size = UDim2.new(1, 0, 0, 30)
+    b.Position = pos
+    b.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    b.Text = text .. ": OFF"
+    b.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", b)
+    return b
+end
+
+local FastBtn = createToggle(MainTab, "Fast Open", UDim2.new(0,0,0,0))
+local CollectBtn = createToggle(MainTab, "Collect coins and etc (tp)", UDim2.new(0,0,0,35))
+
+local EggHeader = Instance.new("TextButton", FarmingTab)
+EggHeader.Size = UDim2.new(1, 0, 0, 28)
+EggHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+EggHeader.Text = "Select Egg ▼"
+Instance.new("UICorner", EggHeader)
+
+local EggScroll = Instance.new("ScrollingFrame", FarmingTab)
+EggScroll.Position = UDim2.new(0, 0, 0, 32)
+EggScroll.Size = UDim2.new(1, 0, 0, 110)
+EggScroll.Visible = false
+EggScroll.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+EggScroll.ScrollBarThickness = 8
+
+local eggs = {}
+if EGGS_PATH then
+    for _, v in pairs(EGGS_PATH:GetChildren()) do table.insert(eggs, v.Name) end
+    table.sort(eggs)
+end
+for _, name in pairs(eggs) do
+    local b = Instance.new("TextButton", EggScroll)
+    b.Size = UDim2.new(1, -10, 0, 25)
+    b.BackgroundTransparency = 1
+    b.Text = "  " .. name
+    b.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    b.TextXAlignment = Enum.TextXAlignment.Left
+    b.MouseButton1Click:Connect(function()
+        selectedEgg = name
+        EggHeader.Text = "Field: " .. name .. " ▼"
+        EggScroll.Visible = false
+    end)
+    Instance.new("UIListLayout", EggScroll)
+end
+EggScroll.CanvasSize = UDim2.new(0, 0, 0, #eggs * 25)
+
+local StartBtn = Instance.new("TextButton", FarmingTab)
+StartBtn.Position = UDim2.new(0, 0, 1, -35)
+StartBtn.Size = UDim2.new(1, 0, 0, 30)
+StartBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+StartBtn.Text = "START HATCH"
+Instance.new("UICorner", StartBtn)
+
+-- ⚙️ ЛОГИКА
+CollapseBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    Holder.Visible = not isCollapsed
+    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 360, 0, 25) or UDim2.new(0, 360, 0, 250), "Out", "Quart", 0.3, true)
+    CollapseBtn.Text = isCollapsed and "+" or "-"
+end)
+
+EggHeader.MouseButton1Click:Connect(function() EggScroll.Visible = not EggScroll.Visible end)
+
+FastBtn.MouseButton1Click:Connect(function()
+    fastOpenEnabled = not fastOpenEnabled
+    FastBtn.Text = "Fast Open: " .. (fastOpenEnabled and "ON" or "OFF")
+    FastBtn.BackgroundColor3 = fastOpenEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
+end)
+
+CollectBtn.MouseButton1Click:Connect(function()
+    autoCollectEnabled = not autoCollectEnabled
+    CollectBtn.Text = "True Collect: " .. (autoCollectEnabled and "ON" or "OFF")
+    CollectBtn.BackgroundColor3 = autoCollectEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
+end)
+
+StartBtn.MouseButton1Click:Connect(function()
+    if selectedEgg == "" then return end
+    isHatching = not isHatching
+    StartBtn.Text = isHatching and "STOP" or "START HATCH"
+    StartBtn.BackgroundColor3 = isHatching and Color3.fromRGB(200, 50, 50) or Color3.fromRGB(0, 150, 80)
+end)
+
+-- 🔄 ИСПРАВЛЕННЫЙ ЦИКЛ СБОРА (Прыжок-Возврат)
+task.spawn(function()
+    while true do
+        task.wait(2) -- Собираем раз в 2 секунды, чтобы не кикало
+        if not autoCollectEnabled or not ACTUAL_PICKUPS then continue end
+        
+        local char = LP.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then continue end
+
+        local savedPos = root.CFrame -- Сохраняем позицию у яиц
+
+        for _, item in pairs(ACTUAL_PICKUPS:GetDescendants()) do
+            if not autoCollectEnabled then break end
+            if item:IsA("TouchTransmitter") then
+                local part = item.Parent
+                if part and part:IsA("BasePart") then
+                    root.CFrame = part.CFrame -- Прыгаем к монете
+                    task.wait(0.05) -- Даем серверу "увидеть" нас
+                end
+            end
+        end
+        
+        root.CFrame = savedPos -- Возвращаемся к яйцам
+    end
+end)
+
+-- Hatching & Fast Open
+task.spawn(function()
+    while true do
+        if isHatching and selectedEgg ~= "" then REMOTE:FireServer("PurchaseEgg", selectedEgg, "Multi") end
+        task.wait(0.01)
+    end
+end)
