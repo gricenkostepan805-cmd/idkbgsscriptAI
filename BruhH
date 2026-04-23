@@ -2,8 +2,9 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local LP = Players.LocalPlayer
 local WS = game:GetService("Workspace")
+local StatsService = game:GetService("Stats")
 
--- 🔍 Авто-поиск ресурсов и ивентов
+-- 🔍 Авто-поиск ресурсов
 local EGGS_PATH = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Eggs") or RS:FindFirstChild("Eggs", true)
 local REMOTE = RS:FindFirstChild("NetworkRemoteEvent") or RS:FindFirstChild("RemoteEvent", true)
 local ACTUAL_PICKUPS = WS:FindFirstChild("Pickups")
@@ -13,10 +14,13 @@ local isHatching = false
 local isCollapsed = false
 local fastOpenEnabled = false
 local autoCollectEnabled = false
+local antiAfkEnabled = true
+local eggsOpened = 0
+local startTime = tick()
 
 -- 🎨 ИНТЕРФЕЙС
 local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
-ScreenGui.Name = "BGS_Elite_Fixed"
+ScreenGui.Name = "BGS_Elite_Ultimate"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
@@ -29,9 +33,8 @@ MainFrame.Draggable = true
 MainFrame.ClipsDescendants = true
 Instance.new("UICorner", MainFrame)
 
--- Фоновая картинка
+-- Фон
 local BackgroundImg = Instance.new("ImageLabel", MainFrame)
-BackgroundImg.Name = "CustomBackground"
 BackgroundImg.Size = UDim2.new(1, 0, 1, 0)
 BackgroundImg.BackgroundTransparency = 1
 BackgroundImg.ImageTransparency = 0.8
@@ -46,7 +49,7 @@ Header.ZIndex = 2
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "Atlas Elite v3.2 (Fixed)"
+Title.Text = "Atlas Elite v3.5 (Full)"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 11
@@ -87,7 +90,7 @@ local function createTab(name)
     Tabs[name] = t
     
     local btn = Instance.new("TextButton", Sidebar)
-    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.Size = UDim2.new(1, 0, 0, 32)
     btn.BackgroundTransparency = 1
     btn.Text = name
     btn.TextColor3 = Color3.new(0.7, 0.7, 0.7)
@@ -102,6 +105,7 @@ end
 
 local MainTab = createTab("Main")
 local FarmingTab = createTab("Farming")
+local StatsTab = createTab("Stats")
 local SettingsTab = createTab("Settings")
 MainTab.Visible = true
 
@@ -117,9 +121,27 @@ local function createToggle(parent, text, pos)
     return b
 end
 
+local function createLabel(parent, text, pos)
+    local l = Instance.new("TextLabel", parent)
+    l.Size = UDim2.new(1, 0, 0, 25)
+    l.Position = pos
+    l.BackgroundTransparency = 1
+    l.Text = text
+    l.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    l.Font = Enum.Font.Gotham
+    l.TextSize = 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    return l
+end
+
 -- Вкладка Main
 local FastBtn = createToggle(MainTab, "Fast Open", UDim2.new(0,0,0,0))
-local CollectBtn = createToggle(MainTab, "Auto Collect (TP)", UDim2.new(0,0,0,35))
+local CollectBtn = createToggle(MainTab, "Auto Collect", UDim2.new(0,0,0,35))
+
+-- Вкладка Stats
+local PingLabel = createLabel(StatsTab, "Ping: ...", UDim2.new(0,0,0,0))
+local TimeLabel = createLabel(StatsTab, "Runtime: 00:00:00", UDim2.new(0,0,0,25))
+local EggStatLabel = createLabel(StatsTab, "Eggs Opened: 0", UDim2.new(0,0,0,50))
 
 -- Вкладка Farming
 local EggHeader = Instance.new("TextButton", FarmingTab)
@@ -133,7 +155,7 @@ EggScroll.Position = UDim2.new(0, 0, 0, 32)
 EggScroll.Size = UDim2.new(1, 0, 0, 110)
 EggScroll.Visible = false
 EggScroll.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-EggScroll.ScrollBarThickness = 8
+EggScroll.ScrollBarThickness = 5
 
 local eggs = {}
 if EGGS_PATH then
@@ -150,12 +172,11 @@ for _, name in pairs(eggs) do
     b.Font = Enum.Font.Gotham
     b.MouseButton1Click:Connect(function()
         selectedEgg = name
-        EggHeader.Text = "Egg: " .. name .. " ▼"
+        EggHeader.Text = "Egg: " .. name
         EggScroll.Visible = false
     end)
     Instance.new("UIListLayout", EggScroll)
 end
-EggScroll.CanvasSize = UDim2.new(0, 0, 0, #eggs * 25)
 
 local StartBtn = Instance.new("TextButton", FarmingTab)
 StartBtn.Position = UDim2.new(0, 0, 1, -35)
@@ -166,40 +187,75 @@ StartBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", StartBtn)
 
 -- Вкладка Settings
+local AntiAfkBtn = createToggle(SettingsTab, "Anti-AFK", UDim2.new(0,0,0,0))
+AntiAfkBtn.Text = "Anti-AFK: ON"
+AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+
 local IdBox = Instance.new("TextBox", SettingsTab)
-IdBox.Size = UDim2.new(1, 0, 0, 35)
-IdBox.PlaceholderText = "Paste Image ID (numbers)..."
-IdBox.Text = ""
+IdBox.Size = UDim2.new(1, 0, 0, 30)
+IdBox.Position = UDim2.new(0,0,0,40)
+IdBox.PlaceholderText = "Image ID..."
 IdBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-IdBox.TextColor3 = Color3.new(1, 1, 1)
-IdBox.Font = Enum.Font.Gotham
+IdBox.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner", IdBox)
 
-local ApplyBtn = Instance.new("TextButton", SettingsTab)
-ApplyBtn.Position = UDim2.new(0, 0, 0, 45)
-ApplyBtn.Size = UDim2.new(1, 0, 0, 30)
-ApplyBtn.Text = "Apply Background"
-ApplyBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-ApplyBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", ApplyBtn)
-
 -- ⚙️ ЛОГИКА
-CollapseBtn.MouseButton1Click:Connect(function()
-    isCollapsed = not isCollapsed
-    Holder.Visible = not isCollapsed
-    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 360, 0, 25) or UDim2.new(0, 360, 0, 250), "Out", "Quart", 0.3, true)
-    CollapseBtn.Text = isCollapsed and "+" or "-"
-end)
 
-ApplyBtn.MouseButton1Click:Connect(function()
-    local id = IdBox.Text:match("%d+")
-    if id then
-        BackgroundImg.Image = "rbxassetid://" .. id
+-- Anti-AFK система
+LP.Idled:Connect(function()
+    if antiAfkEnabled then
+        game:GetService("VirtualUser"):CaptureController()
+        game:GetService("VirtualUser"):ClickButton2(Vector2.new())
     end
 end)
 
-EggHeader.MouseButton1Click:Connect(function() EggScroll.Visible = not EggScroll.Visible end)
+-- Обновление статистики
+task.spawn(function()
+    while task.wait(1) do
+        local ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue())
+        PingLabel.Text = "Ping: " .. ping .. " ms"
+        
+        local diff = tick() - startTime
+        local h = math.floor(diff / 3600)
+        local m = math.floor((diff % 3600) / 60)
+        local s = math.floor(diff % 60)
+        TimeLabel.Text = string.format("Runtime: %02d:%02d:%02d", h, m, s)
+    end
+end)
 
+-- Цикл открытия яиц
+task.spawn(function()
+    while true do
+        if isHatching and selectedEgg ~= "" then 
+            REMOTE:FireServer("PurchaseEgg", selectedEgg, "Multi") 
+            eggsOpened = eggsOpened + 3
+            EggStatLabel.Text = "Eggs Opened: " .. eggsOpened
+        end
+        task.wait(0.01)
+    end
+end)
+
+-- Цикл сбора (TP)
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if not autoCollectEnabled or not ACTUAL_PICKUPS then continue end
+        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local oldPos = root.CFrame
+            for _, item in pairs(ACTUAL_PICKUPS:GetDescendants()) do
+                if not autoCollectEnabled then break end
+                if item:IsA("TouchTransmitter") and item.Parent then
+                    root.CFrame = item.Parent.CFrame
+                    task.wait(0.05)
+                end
+            end
+            root.CFrame = oldPos
+        end
+    end
+end)
+
+-- Обработка кнопок
 FastBtn.MouseButton1Click:Connect(function()
     fastOpenEnabled = not fastOpenEnabled
     FastBtn.Text = "Fast Open: " .. (fastOpenEnabled and "ON" or "OFF")
@@ -208,8 +264,14 @@ end)
 
 CollectBtn.MouseButton1Click:Connect(function()
     autoCollectEnabled = not autoCollectEnabled
-    CollectBtn.Text = "True Collect: " .. (autoCollectEnabled and "ON" or "OFF")
+    CollectBtn.Text = "Auto Collect: " .. (autoCollectEnabled and "ON" or "OFF")
     CollectBtn.BackgroundColor3 = autoCollectEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
+end)
+
+AntiAfkBtn.MouseButton1Click:Connect(function()
+    antiAfkEnabled = not antiAfkEnabled
+    AntiAfkBtn.Text = "Anti-AFK: " .. (antiAfkEnabled and "ON" or "OFF")
+    AntiAfkBtn.BackgroundColor3 = antiAfkEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
 end)
 
 StartBtn.MouseButton1Click:Connect(function()
@@ -219,58 +281,13 @@ StartBtn.MouseButton1Click:Connect(function()
     StartBtn.BackgroundColor3 = isHatching and Color3.fromRGB(200, 50, 50) or Color3.fromRGB(0, 150, 80)
 end)
 
--- 🔄 ЦИКЛ СБОРА
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if not autoCollectEnabled or not ACTUAL_PICKUPS then continue end
-        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-        if not root then continue end
-        local savedPos = root.CFrame
-        for _, item in pairs(ACTUAL_PICKUPS:GetDescendants()) do
-            if not autoCollectEnabled then break end
-            if item:IsA("TouchTransmitter") then
-                local part = item.Parent
-                if part and part:IsA("BasePart") then
-                    root.CFrame = part.CFrame
-                    task.wait(0.05)
-                end
-            end
-        end
-        root.CFrame = savedPos
-    end
+CollapseBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    Holder.Visible = not isCollapsed
+    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 360, 0, 25) or UDim2.new(0, 360, 0, 250), "Out", "Quart", 0.3, true)
+    CollapseBtn.Text = isCollapsed and "+" or "-"
 end)
 
--- 🛠 ИСПРАВЛЕННЫЙ FAST OPEN (BGS GHOST METHOD)
-task.spawn(function()
-    while task.wait(0.1) do
-        if fastOpenEnabled then
-            -- Скрываем UI открытия
-            for _, gui in pairs(LP.PlayerGui:GetDescendants()) do
-                if gui.Name == "EggOpen" or gui.Name == "EggOpenGui" then
-                    if gui:IsA("Frame") then gui.Visible = false
-                    elseif gui:IsA("ScreenGui") then gui.Enabled = false end
-                end
-            end
-            -- Прячем 3D яйца (увод под карту вместо Destroy)
-            for _, v in pairs(WS:GetChildren()) do
-                if v.Name == "Egg" and v:IsA("Model") then
-                    for _, p in pairs(v:GetDescendants()) do
-                        if p:IsA("BasePart") then p.Transparency = 1 p.CanCollide = false end
-                    end
-                    if v.PrimaryPart then v:SetPrimaryPartCFrame(CFrame.new(0, -1000, 0)) end
-                end
-            end
-        end
-    end
-end)
+EggHeader.MouseButton1Click:Connect(function() EggScroll.Visible = not EggScroll.Visible end)
 
--- Hatching
-task.spawn(function()
-    while true do
-        if isHatching and selectedEgg ~= "" then 
-            REMOTE:FireServer("PurchaseEgg", selectedEgg, "Multi") 
-        end
-        task.wait(0.01)
-    end
-end)
+print("Elite Script v3.5 Loaded!")
