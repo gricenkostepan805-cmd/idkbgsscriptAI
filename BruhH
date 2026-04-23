@@ -1,10 +1,11 @@
+
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local LP = Players.LocalPlayer
 local WS = game:GetService("Workspace")
 local StatsService = game:GetService("Stats")
 
--- 🔍 Авто-поиск ресурсов
+-- 🔍 Ресурсы
 local EGGS_PATH = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Eggs") or RS:FindFirstChild("Eggs", true)
 local REMOTE = RS:FindFirstChild("NetworkRemoteEvent") or RS:FindFirstChild("RemoteEvent", true)
 local ACTUAL_PICKUPS = WS:FindFirstChild("Pickups")
@@ -20,7 +21,7 @@ local startTime = tick()
 
 -- 🎨 ИНТЕРФЕЙС
 local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
-ScreenGui.Name = "BGS_Elite_Ultimate"
+ScreenGui.Name = "BGS_Elite_Final_Fixed"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
@@ -33,28 +34,21 @@ MainFrame.Draggable = true
 MainFrame.ClipsDescendants = true
 Instance.new("UICorner", MainFrame)
 
--- Фон
-local BackgroundImg = Instance.new("ImageLabel", MainFrame)
-BackgroundImg.Size = UDim2.new(1, 0, 1, 0)
-BackgroundImg.BackgroundTransparency = 1
-BackgroundImg.ImageTransparency = 0.8
-BackgroundImg.ScaleType = Enum.ScaleType.Crop
-BackgroundImg.ZIndex = 0
-
 local Header = Instance.new("Frame", MainFrame)
 Header.Size = UDim2.new(1, 0, 0, 25)
 Header.BackgroundColor3 = Color3.fromRGB(35, 45, 75)
-Header.ZIndex = 2
+Header.ZIndex = 10 -- Поверх всего
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "Atlas Elite v3.5 (Full)"
+Title.Text = "Atlas Elite v3.6 (Fixed Layout)"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 11
 Title.BackgroundTransparency = 1
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 11
 
 local CollapseBtn = Instance.new("TextButton", Header)
 CollapseBtn.Size = UDim2.new(0, 30, 0, 25)
@@ -63,6 +57,7 @@ CollapseBtn.BackgroundTransparency = 1
 CollapseBtn.Text = "-"
 CollapseBtn.TextColor3 = Color3.new(1, 1, 1)
 CollapseBtn.Font = Enum.Font.GothamBold
+CollapseBtn.ZIndex = 11
 
 local Holder = Instance.new("Frame", MainFrame)
 Holder.Size = UDim2.new(1, 0, 1, -25)
@@ -109,6 +104,7 @@ local StatsTab = createTab("Stats")
 local SettingsTab = createTab("Settings")
 MainTab.Visible = true
 
+-- Вспомогательные функции
 local function createToggle(parent, text, pos)
     local b = Instance.new("TextButton", parent)
     b.Size = UDim2.new(1, 0, 0, 30)
@@ -134,16 +130,14 @@ local function createLabel(parent, text, pos)
     return l
 end
 
--- Вкладка Main
+-- Наполнение вкладок
 local FastBtn = createToggle(MainTab, "Fast Open", UDim2.new(0,0,0,0))
 local CollectBtn = createToggle(MainTab, "Auto Collect", UDim2.new(0,0,0,35))
 
--- Вкладка Stats
 local PingLabel = createLabel(StatsTab, "Ping: ...", UDim2.new(0,0,0,0))
 local TimeLabel = createLabel(StatsTab, "Runtime: 00:00:00", UDim2.new(0,0,0,25))
 local EggStatLabel = createLabel(StatsTab, "Eggs Opened: 0", UDim2.new(0,0,0,50))
 
--- Вкладка Farming
 local EggHeader = Instance.new("TextButton", FarmingTab)
 EggHeader.Size = UDim2.new(1, 0, 0, 28)
 EggHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -152,16 +146,21 @@ Instance.new("UICorner", EggHeader)
 
 local EggScroll = Instance.new("ScrollingFrame", FarmingTab)
 EggScroll.Position = UDim2.new(0, 0, 0, 32)
-EggScroll.Size = UDim2.new(1, 0, 0, 110)
+EggScroll.Size = UDim2.new(1, 0, 0, 130)
 EggScroll.Visible = false
 EggScroll.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-EggScroll.ScrollBarThickness = 5
+EggScroll.ScrollBarThickness = 6
+EggScroll.BorderSizePixel = 0
+
+local listLayout = Instance.new("UIListLayout", EggScroll)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local eggs = {}
 if EGGS_PATH then
     for _, v in pairs(EGGS_PATH:GetChildren()) do table.insert(eggs, v.Name) end
     table.sort(eggs)
 end
+
 for _, name in pairs(eggs) do
     local b = Instance.new("TextButton", EggScroll)
     b.Size = UDim2.new(1, -10, 0, 25)
@@ -175,8 +174,9 @@ for _, name in pairs(eggs) do
         EggHeader.Text = "Egg: " .. name
         EggScroll.Visible = false
     end)
-    Instance.new("UIListLayout", EggScroll)
 end
+-- Автоматический размер скролла
+EggScroll.CanvasSize = UDim2.new(0, 0, 0, #eggs * 25)
 
 local StartBtn = Instance.new("TextButton", FarmingTab)
 StartBtn.Position = UDim2.new(0, 0, 1, -35)
@@ -186,22 +186,11 @@ StartBtn.Text = "START HATCH"
 StartBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", StartBtn)
 
--- Вкладка Settings
 local AntiAfkBtn = createToggle(SettingsTab, "Anti-AFK", UDim2.new(0,0,0,0))
 AntiAfkBtn.Text = "Anti-AFK: ON"
 AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
 
-local IdBox = Instance.new("TextBox", SettingsTab)
-IdBox.Size = UDim2.new(1, 0, 0, 30)
-IdBox.Position = UDim2.new(0,0,0,40)
-IdBox.PlaceholderText = "Image ID..."
-IdBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-IdBox.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", IdBox)
-
 -- ⚙️ ЛОГИКА
-
--- Anti-AFK система
 LP.Idled:Connect(function()
     if antiAfkEnabled then
         game:GetService("VirtualUser"):CaptureController()
@@ -209,21 +198,17 @@ LP.Idled:Connect(function()
     end
 end)
 
--- Обновление статистики
 task.spawn(function()
     while task.wait(1) do
-        local ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue())
-        PingLabel.Text = "Ping: " .. ping .. " ms"
-        
-        local diff = tick() - startTime
-        local h = math.floor(diff / 3600)
-        local m = math.floor((diff % 3600) / 60)
-        local s = math.floor(diff % 60)
-        TimeLabel.Text = string.format("Runtime: %02d:%02d:%02d", h, m, s)
+        pcall(function()
+            local ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue())
+            PingLabel.Text = "Ping: " .. ping .. " ms"
+            local diff = tick() - startTime
+            TimeLabel.Text = string.format("Runtime: %02d:%02d:%02d", math.floor(diff/3600), math.floor((diff%3600)/60), math.floor(diff%60))
+        end)
     end
 end)
 
--- Цикл открытия яиц
 task.spawn(function()
     while true do
         if isHatching and selectedEgg ~= "" then 
@@ -231,31 +216,31 @@ task.spawn(function()
             eggsOpened = eggsOpened + 3
             EggStatLabel.Text = "Eggs Opened: " .. eggsOpened
         end
-        task.wait(0.01)
+        task.wait(0.05) -- Чуть увеличил задержку для стабильности
     end
 end)
 
--- Цикл сбора (TP)
 task.spawn(function()
     while true do
         task.wait(2)
-        if not autoCollectEnabled or not ACTUAL_PICKUPS then continue end
-        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local oldPos = root.CFrame
-            for _, item in pairs(ACTUAL_PICKUPS:GetDescendants()) do
-                if not autoCollectEnabled then break end
-                if item:IsA("TouchTransmitter") and item.Parent then
-                    root.CFrame = item.Parent.CFrame
-                    task.wait(0.05)
+        if autoCollectEnabled and ACTUAL_PICKUPS then
+            local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local oldPos = root.CFrame
+                for _, item in pairs(ACTUAL_PICKUPS:GetDescendants()) do
+                    if not autoCollectEnabled then break end
+                    if item:IsA("TouchTransmitter") and item.Parent then
+                        root.CFrame = item.Parent.CFrame
+                        task.wait(0.05)
+                    end
                 end
+                root.CFrame = oldPos
             end
-            root.CFrame = oldPos
         end
     end
 end)
 
--- Обработка кнопок
+-- Ивенты кнопок
 FastBtn.MouseButton1Click:Connect(function()
     fastOpenEnabled = not fastOpenEnabled
     FastBtn.Text = "Fast Open: " .. (fastOpenEnabled and "ON" or "OFF")
@@ -290,4 +275,4 @@ end)
 
 EggHeader.MouseButton1Click:Connect(function() EggScroll.Visible = not EggScroll.Visible end)
 
-print("Elite Script v3.5 Loaded!")
+print("Fixed Script Loaded!")
