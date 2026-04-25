@@ -1,278 +1,169 @@
-
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local LP = Players.LocalPlayer
 local WS = game:GetService("Workspace")
-local StatsService = game:GetService("Stats")
 
--- 🔍 Ресурсы
+-- 🔍 Инициализация
 local EGGS_PATH = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Eggs") or RS:FindFirstChild("Eggs", true)
 local REMOTE = RS:FindFirstChild("NetworkRemoteEvent") or RS:FindFirstChild("RemoteEvent", true)
 local ACTUAL_PICKUPS = WS:FindFirstChild("Pickups")
 
+-- ⚙️ Состояние
 local selectedEgg = ""
 local isHatching = false
-local isCollapsed = false
-local fastOpenEnabled = false
 local autoCollectEnabled = false
-local antiAfkEnabled = true
-local eggsOpened = 0
-local startTime = tick()
+local antiAfkEnabled = false
+local hitboxExpanderEnabled = false
+local isCollapsed = false
 
 -- 🎨 ИНТЕРФЕЙС
-local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
-ScreenGui.Name = "BGS_Elite_Final_Fixed"
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Atlas_Elite_v6_6"
 ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = LP:WaitForChild("PlayerGui") end)
+if not ScreenGui.Parent then ScreenGui.Parent = game:GetService("CoreGui") end
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 360, 0, 250)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -125)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainFrame.BorderSizePixel = 0
+MainFrame.Size = UDim2.new(0, 350, 0, 260)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -130)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true
-Instance.new("UICorner", MainFrame)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Color = Color3.fromRGB(0, 180, 255)
+Stroke.Thickness = 1.5
 
+-- 📜 ОКНО ПОИСКА
+local ListFrame = Instance.new("Frame", MainFrame)
+ListFrame.Size = UDim2.new(0, 220, 1, 0)
+ListFrame.Position = UDim2.new(1, 10, 0, 0)
+ListFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+ListFrame.Visible = false
+Instance.new("UICorner", ListFrame)
+Instance.new("UIStroke", ListFrame).Color = Color3.fromRGB(0, 180, 255)
+
+local SearchBox = Instance.new("TextBox", ListFrame)
+SearchBox.Size = UDim2.new(1, -10, 0, 30); SearchBox.Position = UDim2.new(0, 5, 0, 5)
+SearchBox.BackgroundColor3 = Color3.fromRGB(30, 35, 45); SearchBox.Text = ""; SearchBox.PlaceholderText = "Search egg..."
+SearchBox.TextColor3 = Color3.new(1, 1, 1); SearchBox.Font = Enum.Font.Gotham; SearchBox.TextSize = 12
+Instance.new("UICorner", SearchBox)
+
+local ScrollFrame = Instance.new("ScrollingFrame", ListFrame)
+ScrollFrame.Size = UDim2.new(1, 0, 1, -40); ScrollFrame.Position = UDim2.new(0, 0, 0, 40)
+ScrollFrame.BackgroundTransparency = 1; ScrollFrame.ScrollBarThickness = 4
+local ScrollLayout = Instance.new("UIListLayout", ScrollFrame); ScrollLayout.Padding = UDim.new(0, 2)
+
+local function updateList(filter)
+    for _, child in pairs(ScrollFrame:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+    local eggs = {}
+    if EGGS_PATH then for _, v in pairs(EGGS_PATH:GetChildren()) do if filter == "" or v.Name:lower():find(filter:lower()) then table.insert(eggs, v.Name) end end end
+    table.sort(eggs)
+    for _, name in pairs(eggs) do
+        local b = Instance.new("TextButton", ScrollFrame)
+        b.Size = UDim2.new(1, -5, 0, 30); b.BackgroundTransparency = 1; b.Text = "  " .. name
+        b.TextColor3 = Color3.new(0.9, 0.9, 0.9); b.Font = Enum.Font.Gotham; b.TextSize = 12; b.TextXAlignment = Enum.TextXAlignment.Left
+        b.MouseButton1Click:Connect(function() selectedEgg = name; _G.LastEgg = "EGG: " .. name; ListFrame.Visible = false end)
+    end
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #eggs * 32)
+end
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function() updateList(SearchBox.Text) end)
+
+-- Хеддер
 local Header = Instance.new("Frame", MainFrame)
-Header.Size = UDim2.new(1, 0, 0, 25)
-Header.BackgroundColor3 = Color3.fromRGB(35, 45, 75)
-Header.ZIndex = 10 -- Поверх всего
+Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundColor3 = Color3.fromRGB(20, 25, 35); Instance.new("UICorner", Header)
 
 local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, -40, 1, 0)
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "Atlas Elite v3.6 (Fixed Layout)"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 11
-Title.BackgroundTransparency = 1
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.ZIndex = 11
+Title.Size = UDim2.new(1, -100, 1, 0); Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Text = "ATLAS ELITE // V6.6"; Title.TextColor3 = Color3.fromRGB(0, 180, 255); Title.Font = Enum.Font.GothamBold; Title.TextSize = 13; Title.BackgroundTransparency = 1; Title.TextXAlignment = Enum.TextXAlignment.Left
 
-local CollapseBtn = Instance.new("TextButton", Header)
-CollapseBtn.Size = UDim2.new(0, 30, 0, 25)
-CollapseBtn.Position = UDim2.new(1, -30, 0, 0)
-CollapseBtn.BackgroundTransparency = 1
-CollapseBtn.Text = "-"
-CollapseBtn.TextColor3 = Color3.new(1, 1, 1)
-CollapseBtn.Font = Enum.Font.GothamBold
-CollapseBtn.ZIndex = 11
-
-local Holder = Instance.new("Frame", MainFrame)
-Holder.Size = UDim2.new(1, 0, 1, -25)
-Holder.Position = UDim2.new(0, 0, 0, 25)
-Holder.BackgroundTransparency = 1
-Holder.ZIndex = 2
-
-local Sidebar = Instance.new("Frame", Holder)
-Sidebar.Size = UDim2.new(0, 90, 1, 0)
-Sidebar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-Sidebar.BorderSizePixel = 0
-Instance.new("UIListLayout", Sidebar)
-
-local Content = Instance.new("Frame", Holder)
-Content.Position = UDim2.new(0, 95, 0, 5)
-Content.Size = UDim2.new(1, -100, 1, -10)
-Content.BackgroundTransparency = 1
+-- Тело
+local Body = Instance.new("Frame", MainFrame)
+Body.Size = UDim2.new(1, 0, 1, -35); Body.Position = UDim2.new(0, 0, 0, 35); Body.BackgroundTransparency = 1
+local Nav = Instance.new("Frame", Body); Nav.Size = UDim2.new(1, 0, 0, 30); Nav.BackgroundColor3 = Color3.fromRGB(15, 18, 25)
+Instance.new("UIListLayout", Nav).FillDirection = Enum.FillDirection.Horizontal
+local Container = Instance.new("Frame", Body); Container.Size = UDim2.new(1, -30, 1, -50); Container.Position = UDim2.new(0, 15, 0, 40); Container.BackgroundTransparency = 1
 
 local Tabs = {}
-local function createTab(name)
-    local t = Instance.new("Frame", Content)
-    t.Size = UDim2.new(1, 0, 1, 0)
-    t.BackgroundTransparency = 1
-    t.Visible = false
-    Tabs[name] = t
-    
-    local btn = Instance.new("TextButton", Sidebar)
-    btn.Size = UDim2.new(1, 0, 0, 32)
-    btn.BackgroundTransparency = 1
-    btn.Text = name
-    btn.TextColor3 = Color3.new(0.7, 0.7, 0.7)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 12
-    btn.MouseButton1Click:Connect(function()
-        for _, v in pairs(Tabs) do v.Visible = false end
-        t.Visible = true
+local function createTab(name, dName)
+    local f = Instance.new("Frame", Container); f.Size = UDim2.new(1, 0, 1, 0); f.BackgroundTransparency = 1; f.Visible = false
+    Instance.new("UIListLayout", f).Padding = UDim.new(0, 10); Tabs[name] = f
+    local b = Instance.new("TextButton", Nav); b.Size = UDim2.new(0.333, 0, 1, 0); b.BackgroundTransparency = 1
+    b.Text = dName:upper(); b.TextColor3 = Color3.new(0.6, 0.6, 0.6); b.Font = Enum.Font.GothamMedium; b.TextSize = 10
+    b.MouseButton1Click:Connect(function()
+        for _, t in pairs(Tabs) do t.Visible = false end; f.Visible = true
+        for _, btn in pairs(Nav:GetChildren()) do if btn:IsA("TextButton") then btn.TextColor3 = Color3.new(0.6,0.6,0.6) end end
+        b.TextColor3 = Color3.fromRGB(0, 180, 255)
+        ListFrame.Visible = false -- ФИКС: Закрываем список при смене вкладок
     end)
-    return t
+    return f
 end
 
-local MainTab = createTab("Main")
-local FarmingTab = createTab("Farming")
-local StatsTab = createTab("Stats")
-local SettingsTab = createTab("Settings")
+local MainTab = createTab("Main", "Main"); local FarmTab = createTab("Farming", "Farming"); local SettingsTab = createTab("Settings", "Settings")
 MainTab.Visible = true
 
--- Вспомогательные функции
-local function createToggle(parent, text, pos)
-    local b = Instance.new("TextButton", parent)
-    b.Size = UDim2.new(1, 0, 0, 30)
-    b.Position = pos
-    b.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    b.Text = text .. ": OFF"
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.Gotham
-    Instance.new("UICorner", b)
-    return b
+-- Чекбоксы
+local function addCheck(parent, txt, callback)
+    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1, 0, 0, 25); f.BackgroundTransparency = 1
+    local c = Instance.new("TextButton", f); c.Size = UDim2.new(0, 20, 0, 20); c.BackgroundColor3 = Color3.fromRGB(30, 35, 45); c.Text = ""
+    c.TextColor3 = Color3.fromRGB(0, 180, 255); Instance.new("UICorner", c).CornerRadius = UDim.new(0, 4)
+    local l = Instance.new("TextLabel", f); l.Size = UDim2.new(1, -30, 1, 0); l.Position = UDim2.new(0, 30, 0, 0); l.BackgroundTransparency = 1
+    l.Text = txt; l.TextColor3 = Color3.new(0.9, 0.9, 0.9); l.Font = Enum.Font.Gotham; l.TextSize = 12; l.TextXAlignment = Enum.TextXAlignment.Left
+    local active = false; c.MouseButton1Click:Connect(function() active = not active; c.Text = active and "●" or ""; callback(active) end)
 end
 
-local function createLabel(parent, text, pos)
-    local l = Instance.new("TextLabel", parent)
-    l.Size = UDim2.new(1, 0, 0, 25)
-    l.Position = pos
-    l.BackgroundTransparency = 1
-    l.Text = text
-    l.TextColor3 = Color3.new(0.9, 0.9, 0.9)
-    l.Font = Enum.Font.Gotham
-    l.TextSize = 12
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    return l
-end
+addCheck(MainTab, "ESP Markers + 25x Radius", function(s) hitboxExpanderEnabled = s end)
+addCheck(MainTab, "Auto TP to Items", function(s) autoCollectEnabled = s end)
+addCheck(SettingsTab, "Anti-AFK System", function(s) antiAfkEnabled = s end)
 
--- Наполнение вкладок
-local FastBtn = createToggle(MainTab, "Fast Open", UDim2.new(0,0,0,0))
-local CollectBtn = createToggle(MainTab, "Auto Collect", UDim2.new(0,0,0,35))
+local EggBtn = Instance.new("TextButton", FarmTab); EggBtn.Size = UDim2.new(1, 0, 0, 35); EggBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 55)
+EggBtn.Text = "SELECT EGG"; EggBtn.TextColor3 = Color3.new(1, 1, 1); EggBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", EggBtn)
+EggBtn.MouseButton1Click:Connect(function() ListFrame.Visible = not ListFrame.Visible; if ListFrame.Visible then updateList(""); SearchBox:CaptureFocus() end end)
 
-local PingLabel = createLabel(StatsTab, "Ping: ...", UDim2.new(0,0,0,0))
-local TimeLabel = createLabel(StatsTab, "Runtime: 00:00:00", UDim2.new(0,0,0,25))
-local EggStatLabel = createLabel(StatsTab, "Eggs Opened: 0", UDim2.new(0,0,0,50))
+local StartBtn = Instance.new("TextButton", FarmTab); StartBtn.Size = UDim2.new(1, 0, 0, 35); StartBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
+StartBtn.Text = "START HATCHING"; StartBtn.TextColor3 = Color3.new(1, 1, 1); StartBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", StartBtn)
 
-local EggHeader = Instance.new("TextButton", FarmingTab)
-EggHeader.Size = UDim2.new(1, 0, 0, 28)
-EggHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-EggHeader.Text = "Select Egg ▼"
-Instance.new("UICorner", EggHeader)
+-- ⚙️ УПРАВЛЕНИЕ ОКНОМ
+local RestoreBtn = Instance.new("TextButton", ScreenGui)
+RestoreBtn.Size = UDim2.new(0, 110, 0, 35); RestoreBtn.Position = UDim2.new(0, 15, 1, -50); RestoreBtn.Visible = false
+RestoreBtn.Text = "OPEN ATLAS"; RestoreBtn.BackgroundColor3 = Color3.fromRGB(20, 25, 40); RestoreBtn.TextColor3 = Color3.fromRGB(0, 180, 255)
+RestoreBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", RestoreBtn); Instance.new("UIStroke", RestoreBtn).Color = Color3.fromRGB(0, 180, 255)
 
-local EggScroll = Instance.new("ScrollingFrame", FarmingTab)
-EggScroll.Position = UDim2.new(0, 0, 0, 32)
-EggScroll.Size = UDim2.new(1, 0, 0, 130)
-EggScroll.Visible = false
-EggScroll.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-EggScroll.ScrollBarThickness = 6
-EggScroll.BorderSizePixel = 0
+local CloseBtn = Instance.new("TextButton", Header)
+CloseBtn.Size = UDim2.new(0, 35, 0, 35); CloseBtn.Position = UDim2.new(1, -35, 0, 0); CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80); CloseBtn.BackgroundTransparency = 1; CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; RestoreBtn.Visible = true; ListFrame.Visible = false end)
 
-local listLayout = Instance.new("UIListLayout", EggScroll)
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local MiniBtn = Instance.new("TextButton", Header)
+MiniBtn.Size = UDim2.new(0, 35, 0, 35); MiniBtn.Position = UDim2.new(1, -70, 0, 0); MiniBtn.Text = "—"
+MiniBtn.TextColor3 = Color3.new(1, 1, 1); MiniBtn.BackgroundTransparency = 1; MiniBtn.Font = Enum.Font.GothamBold
+MiniBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 350, 0, 35) or UDim2.new(0, 350, 0, 260), "Out", "Quart", 0.3, true)
+    Body.Visible = not isCollapsed
+    ListFrame.Visible = false -- ФИКС: Скрываем список при сворачивании
+end)
 
-local eggs = {}
-if EGGS_PATH then
-    for _, v in pairs(EGGS_PATH:GetChildren()) do table.insert(eggs, v.Name) end
-    table.sort(eggs)
-end
+RestoreBtn.MouseButton1Click:Connect(function() MainFrame.Visible = true; RestoreBtn.Visible = false end)
 
-for _, name in pairs(eggs) do
-    local b = Instance.new("TextButton", EggScroll)
-    b.Size = UDim2.new(1, -10, 0, 25)
-    b.BackgroundTransparency = 1
-    b.Text = "  " .. name
-    b.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-    b.TextXAlignment = Enum.TextXAlignment.Left
-    b.Font = Enum.Font.Gotham
-    b.MouseButton1Click:Connect(function()
-        selectedEgg = name
-        EggHeader.Text = "Egg: " .. name
-        EggScroll.Visible = false
+-- ЛОГИКА
+task.spawn(function() while task.wait(0.1) do if _G.LastEgg then EggBtn.Text = _G.LastEgg end end end)
+local function applyESP(v)
+    pcall(function()
+        local touch = v:FindFirstChildWhichIsA("TouchTransmitter", true)
+        if touch and touch.Parent and not v:FindFirstChild("AtlasESP") then
+            local p = touch.Parent; p.Size = Vector3.new(25, 25, 25); p.Transparency = 1; p.CanCollide = false
+            local ui = Instance.new("BillboardGui", v); ui.Name = "AtlasESP"; ui.AlwaysOnTop = true; ui.Size = UDim2.new(0, 8, 0, 8)
+            local dot = Instance.new("Frame", ui); dot.Size = UDim2.new(1, 0, 1, 0); dot.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+            Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0); Instance.new("UIStroke", dot).Color = Color3.new(1, 1, 1)
+        end
     end)
 end
--- Автоматический размер скролла
-EggScroll.CanvasSize = UDim2.new(0, 0, 0, #eggs * 25)
-
-local StartBtn = Instance.new("TextButton", FarmingTab)
-StartBtn.Position = UDim2.new(0, 0, 1, -35)
-StartBtn.Size = UDim2.new(1, 0, 0, 30)
-StartBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
-StartBtn.Text = "START HATCH"
-StartBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", StartBtn)
-
-local AntiAfkBtn = createToggle(SettingsTab, "Anti-AFK", UDim2.new(0,0,0,0))
-AntiAfkBtn.Text = "Anti-AFK: ON"
-AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
-
--- ⚙️ ЛОГИКА
-LP.Idled:Connect(function()
-    if antiAfkEnabled then
-        game:GetService("VirtualUser"):CaptureController()
-        game:GetService("VirtualUser"):ClickButton2(Vector2.new())
-    end
-end)
-
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            local ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue())
-            PingLabel.Text = "Ping: " .. ping .. " ms"
-            local diff = tick() - startTime
-            TimeLabel.Text = string.format("Runtime: %02d:%02d:%02d", math.floor(diff/3600), math.floor((diff%3600)/60), math.floor(diff%60))
-        end)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if isHatching and selectedEgg ~= "" then 
-            REMOTE:FireServer("PurchaseEgg", selectedEgg, "Multi") 
-            eggsOpened = eggsOpened + 3
-            EggStatLabel.Text = "Eggs Opened: " .. eggsOpened
-        end
-        task.wait(0.05) -- Чуть увеличил задержку для стабильности
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if autoCollectEnabled and ACTUAL_PICKUPS then
-            local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                local oldPos = root.CFrame
-                for _, item in pairs(ACTUAL_PICKUPS:GetDescendants()) do
-                    if not autoCollectEnabled then break end
-                    if item:IsA("TouchTransmitter") and item.Parent then
-                        root.CFrame = item.Parent.CFrame
-                        task.wait(0.05)
-                    end
-                end
-                root.CFrame = oldPos
-            end
-        end
-    end
-end)
-
--- Ивенты кнопок
-FastBtn.MouseButton1Click:Connect(function()
-    fastOpenEnabled = not fastOpenEnabled
-    FastBtn.Text = "Fast Open: " .. (fastOpenEnabled and "ON" or "OFF")
-    FastBtn.BackgroundColor3 = fastOpenEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
-end)
-
-CollectBtn.MouseButton1Click:Connect(function()
-    autoCollectEnabled = not autoCollectEnabled
-    CollectBtn.Text = "Auto Collect: " .. (autoCollectEnabled and "ON" or "OFF")
-    CollectBtn.BackgroundColor3 = autoCollectEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
-end)
-
-AntiAfkBtn.MouseButton1Click:Connect(function()
-    antiAfkEnabled = not antiAfkEnabled
-    AntiAfkBtn.Text = "Anti-AFK: " .. (antiAfkEnabled and "ON" or "OFF")
-    AntiAfkBtn.BackgroundColor3 = antiAfkEnabled and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 60)
-end)
-
+task.spawn(function() while task.wait(1) do if hitboxExpanderEnabled and ACTUAL_PICKUPS then for _, v in pairs(ACTUAL_PICKUPS:GetChildren()) do applyESP(v) end end end end)
 StartBtn.MouseButton1Click:Connect(function()
     if selectedEgg == "" then return end
-    isHatching = not isHatching
-    StartBtn.Text = isHatching and "STOP" or "START HATCH"
-    StartBtn.BackgroundColor3 = isHatching and Color3.fromRGB(200, 50, 50) or Color3.fromRGB(0, 150, 80)
+    isHatching = not isHatching; StartBtn.Text = isHatching and "STOP HATCH" or "START HATCHING"
+    StartBtn.BackgroundColor3 = isHatching and Color3.fromRGB(200, 60, 60) or Color3.fromRGB(0, 150, 90)
 end)
-
-CollapseBtn.MouseButton1Click:Connect(function()
-    isCollapsed = not isCollapsed
-    Holder.Visible = not isCollapsed
-    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 360, 0, 25) or UDim2.new(0, 360, 0, 250), "Out", "Quart", 0.3, true)
-    CollapseBtn.Text = isCollapsed and "+" or "-"
-end)
-
-EggHeader.MouseButton1Click:Connect(function() EggScroll.Visible = not EggScroll.Visible end)
-
-print("Fixed Script Loaded!")
+task.spawn(function() while task.wait(0.1) do if isHatching and selectedEgg ~= "" then pcall(function() REMOTE:FireServer("PurchaseEgg", selectedEgg, "Multi") end) end end end)
+LP.Idled:Connect(function() if antiAfkEnabled then game:GetService("VirtualUser"):CaptureController(); game:GetService("VirtualUser"):ClickButton2(Vector2.new()) end end)
