@@ -1,201 +1,132 @@
-local players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local LP = players.LocalPlayer
-local WS = game:GetService("Workspace")
+-- === AI BUBBLE GUM ELITE (FULL & FIXED) ===
+-- ССЫЛКА НА МЕСТЕ (ZanoLeafVN):
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/ZanoLeafVN/KavoMobileUI/main/KavoMobile.lua"))()
+local Window = Library.CreateLib("AI BUBBLE GUM ELITE", "Midnight")
 
 -- === ИНИЦИАЛИЗАЦИЯ ===
-local EGGS_PATH = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Eggs") or RS:FindFirstChild("Eggs")
-local REMOTE = RS:FindFirstChild("NetworkRemoteEvent") or RS:FindFirstChild("RemoteEvent")
-local ACTUAL_PICKUPS = WS:FindFirstChild("Pickups")
+local rs = game:GetService("ReplicatedStorage")
+local lp = game.Players.LocalPlayer
+local REMOTE = rs:FindFirstChild("NetworkRemoteEvent") or rs:FindFirstChild("RemoteEvent")
+local EGGS_PATH = rs:FindFirstChild("Assets") and rs.Assets:FindFirstChild("Eggs") or rs:FindFirstChild("Eggs")
+local PICKUPS = workspace:FindFirstChild("Pickups")
 
--- === ФУНКЦИЯ ВЗЛОМА (Безопасная) ===
-local function ActivatePasses()
+-- === ФУНКЦИЯ СТИЛЯ (КОТ + СТЕКЛО) ===
+local function ApplyCustomStyle(id)
+    local coreGui = game:GetService("CoreGui")
+    for _, gui in pairs(coreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui:FindFirstChild("Main") then
+            local main = gui.Main
+            if main:FindFirstChild("CustomBG") then main.CustomBG:Destroy() end
+            local bg = Instance.new("ImageLabel", main)
+            bg.Name = "CustomBG"
+            bg.Size = UDim2.new(1, 0, 1, 0)
+            bg.ZIndex = 0
+            bg.BackgroundTransparency = 1
+            bg.Image = "rbxassetid://" .. id
+            bg.ImageTransparency = 0.2
+            bg.ScaleType = Enum.ScaleType.Stretch
+            Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 10)
+            
+            for _, child in pairs(main:GetDescendants()) do
+                if child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                    child.BackgroundTransparency = 0.8
+                    child.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+                elseif child:IsA("TextButton") then
+                    if not child:FindFirstChild("UICorner") then Instance.new("UICorner", child).CornerRadius = UDim.new(0, 6) end
+                    child.BackgroundTransparency = 0.5
+                    child.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+                    child.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end
+        end
+    end
+end
+
+-- === ВКЛАДКИ ===
+local Main = Window:NewTab("Main 🏠")
+local Eggs = Window:NewTab("Eggs 🥚")
+local Hack = Window:NewTab("Hacks ⚡")
+local Settings = Window:NewTab("Settings ⚙️")
+
+-- === ЗАПОЛНЯЕМ SETTINGS (ВЕРНУЛ СМЕНУ ID) ===
+local BgSection = Settings:NewSection("Кастомизация")
+BgSection:NewTextBox("Сменить ID Фона", "Вставь ID и жми Enter", function(txt)
+    local id = tonumber(txt)
+    if id then ApplyCustomStyle(id) end
+end)
+
+-- === ЗАПОЛНЯЕМ MAIN ===
+local MainSection = Main:NewSection("Автоматизация")
+local autoCollect = false
+MainSection:NewToggle("Auto Collect (Pickups)", "Притягивает монеты", function(state)
+    autoCollect = state
+    task.spawn(function()
+        while autoCollect do
+            if PICKUPS then
+                for _, item in pairs(PICKUPS:GetChildren()) do
+                    if item:IsA("BasePart") and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+                        item.CFrame = lp.Character.HumanoidRootPart.CFrame
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end)
+
+MainSection:NewSlider("WalkSpeed", "Скорость бега", 500, 16, function(s)
+    if lp.Character and lp.Character:FindFirstChild("Humanoid") then
+        lp.Character.Humanoid.WalkSpeed = s
+    end
+end)
+
+-- === ВЗЛОМ ===
+local HackSection = Hack:NewSection("Взлом геймпассов")
+HackSection:NewButton("Unlock All Passes", "Активация через Upvalues", function()
     local count = 0
     for _, f in pairs(getgc()) do
-        if type(f) == "function" then
-            local upvalues = debug.getupvalues(f)
-            for i, v in pairs(upvalues) do
+        if type(f) == "function" and islclosure(f) then
+            local upvals = debug.getupvalues(f)
+            for i, v in pairs(upvals) do
                 if type(v) == "table" and (rawget(v, "Quantum Gum") ~= nil or rawget(v, "+500 Slots") ~= nil) then
-                    for passName, val in pairs(v) do
-                        -- Меняем на true только если это не ID картинки (число/строка с assetid)
-                        if type(val) == "boolean" then
-                            v[passName] = true
-                            count = count + 1
-                        end
-                    end
+                    for pName, val in pairs(v) do if type(val) == "boolean" then v[pName] = true count = count + 1 end end
                     debug.setupvalue(f, i, v)
                 end
             end
         end
     end
-    print("AI: Активировано - " .. count)
-end
-
--- === СОСТОЯНИЕ ===
-local selectedEgg = ""
-local isHatching = false
-local autoCollectEnabled = false
-local antiAfkEnabled = false
-local hitboxExporterEnabled = false
-local isCollapsed = false
-
--- === ИНТЕРФЕЙС ===
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AI_Elite_v2"
-ScreenGui.ResetOnSpawn = false
-pcall(function() ScreenGui.Parent = LP:WaitForChild("PlayerGui") end)
-
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 350, 0, 260)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -130)
-MainFrame.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
-MainFrame.Active = true
-MainFrame.Draggable = true
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
-local Stroke = Instance.new("UIStroke", MainFrame)
-Stroke.Color = Color3.fromRGB(0, 180, 255)
-Stroke.Thickness = 1.5
-
--- Кнопки закрытия и сворачивания
-local CloseBtn = Instance.new("TextButton", MainFrame)
-CloseBtn.Size = UDim2.new(0, 25, 0, 25)
-CloseBtn.Position = UDim2.new(1, -30, 0, 5)
-CloseBtn.Text = "X"
-CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", CloseBtn)
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-
-local CollapseBtn = Instance.new("TextButton", MainFrame)
-CollapseBtn.Size = UDim2.new(0, 25, 0, 25)
-CollapseBtn.Position = UDim2.new(1, -60, 0, 5)
-CollapseBtn.Text = "-"
-CollapseBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-CollapseBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", CollapseBtn)
-
--- Хеддер
-local Header = Instance.new("Frame", MainFrame)
-Header.Size = UDim2.new(1, 0, 0, 35)
-Header.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-Instance.new("UICorner", Header)
-
-local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, -100, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "AI BUBBLE GUM ELITE"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 13
-Title.BackgroundTransparency = 1
-Title.TextXAlignment = Enum.TextXAlignment.Left
-
--- Тело
-local Body = Instance.new("Frame", MainFrame)
-Body.Size = UDim2.new(1, 0, 1, -35)
-Body.Position = UDim2.new(0, 0, 0, 35)
-Body.BackgroundTransparency = 1
-
-local Nav = Instance.new("Frame", Body)
-Nav.Size = UDim2.new(1, 0, 0, 30)
-Nav.BackgroundColor3 = Color3.fromRGB(15, 18, 25)
-local NavLayout = Instance.new("UIListLayout", Nav)
-NavLayout.FillDirection = Enum.FillDirection.Horizontal
-
-local Container = Instance.new("Frame", Body)
-Container.Size = UDim2.new(1, -10, 1, -40)
-Container.Position = UDim2.new(0, 5, 0, 40)
-Container.BackgroundTransparency = 1
-
-local tabs = {}
-local function createTab(name, dName)
-    local f = Instance.new("ScrollingFrame", Container)
-    f.Size = UDim2.new(1, 0, 1, 0)
-    f.BackgroundTransparency = 1
-    f.Visible = false
-    f.ScrollBarThickness = 2
-    local Layout = Instance.new("UIListLayout", f)
-    Layout.Padding = UDim.new(0, 5)
-
-    local b = Instance.new("TextButton", Nav)
-    b.Size = UDim2.new(0.333, 0, 1, 0)
-    b.BackgroundTransparency = 1
-    b.Text = dName:upper()
-    b.TextColor3 = Color3.new(0.6, 0.6, 0.6)
-    b.Font = Enum.Font.GothamMedium
-    b.TextSize = 10
-
-    b.MouseButton1Click:Connect(function()
-        for _, tab in pairs(tabs) do tab.Visible = false end
-        for _, btn in pairs(Nav:GetChildren()) do if btn:IsA("TextButton") then btn.TextColor3 = Color3.new(0.6,0.6,0.6) end end
-        f.Visible = true
-        b.TextColor3 = Color3.fromRGB(0, 180, 255)
-    end)
-    tabs[name] = f
-    return f
-end
-
-local MainTab = createTab("Main", "Main")
-local FarmTab = createTab("Farming", "Farming")
-local SettingsTab = createTab("Settings", "Settings")
-MainTab.Visible = true
-
--- Кнопка взлома
-local UnlockBtn = Instance.new("TextButton", MainTab)
-UnlockBtn.Size = UDim2.new(1, -10, 0, 30)
-UnlockBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
-UnlockBtn.Text = "UNLOCK ALL PASSES (AI)"
-UnlockBtn.TextColor3 = Color3.new(1, 1, 1)
-UnlockBtn.Font = Enum.Font.GothamBold
-UnlockBtn.TextSize = 12
-Instance.new("UICorner", UnlockBtn)
-UnlockBtn.MouseButton1Click:Connect(function() 
-    ActivatePasses() 
-    UnlockBtn.Text = "SUCCESS!" 
-    task.wait(1) 
-    UnlockBtn.Text = "UNLOCK ALL PASSES (AI)" 
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "AI: Успех", Text = "Включено: "..tostring(count), Duration = 5})
 end)
 
--- ОКНО ПОИСКА ЯИЦ (Восстановлено)
-local ListFrame = Instance.new("Frame", MainFrame)
-ListFrame.Size = UDim2.new(0, 220, 1, 0)
-ListFrame.Position = UDim2.new(1, 10, 0, 0)
-ListFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-ListFrame.Visible = true
-Instance.new("UICorner", ListFrame)
+-- === ЯЙЦА ===
+local EggSection = Eggs:NewSection("Открытие")
+local eggNames = {}
+if EGGS_PATH then for _, e in pairs(EGGS_PATH:GetChildren()) do table.insert(eggNames, e.Name) end table.sort(eggNames) end
+local selectedEgg, hatchType = "", "Single"
 
-local ScrollFrame = Instance.new("ScrollingFrame", ListFrame)
-ScrollFrame.Size = UDim2.new(1, -10, 1, -40)
-ScrollFrame.Position = UDim2.new(0, 5, 0, 35)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.ScrollBarThickness = 4
-Instance.new("UIListLayout", ScrollFrame).Padding = UDim.new(0, 2)
+EggSection:NewDropdown("Выберите яйцо", "Список A-Z", eggNames, function(c) selectedEgg = c end)
+EggSection:NewDropdown("Тип", "Single / Multi", {"Single", "Multi"}, function(c) hatchType = c end)
 
-local function updateList()
-    for _, v in pairs(ScrollFrame:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-    if EGGS_PATH then
-        for _, egg in pairs(EGGS_PATH:GetChildren()) do
-            local b = Instance.new("TextButton", ScrollFrame)
-            b.Size = UDim2.new(1, -5, 0, 30)
-            b.Text = egg.Name
-            b.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
-            b.TextColor3 = Color3.new(1,1,1)
-            Instance.new("UICorner", b)
-            b.MouseButton1Click:Connect(function() 
-                selectedEgg = egg.Name 
-                print("Выбрано яйцо: "..selectedEgg)
-            end)
-        end
-    end
-end
-updateList()
-
--- Сворачивание
-CollapseBtn.MouseButton1Click:Connect(function()
-    isCollapsed = not isCollapsed
-    Body.Visible = not isCollapsed
-    ListFrame.Visible = not isCollapsed
-    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 350, 0, 35) or UDim2.new(0, 350, 0, 260), "Out", "Quad", 0.3, true)
+local autoHatch = false
+EggSection:NewToggle("Auto Hatch", "Старт", function(s)
+    autoHatch = s
+    spawn(function() while autoHatch do if selectedEgg ~= "" and REMOTE then REMOTE:FireServer("PurchaseEgg", selectedEgg, hatchType) end task.wait(0.1) end end)
 end)
 
-print("🚀 AI HUB v2.0 Восстановлен!")
+-- === ПЛАВАЮЩАЯ КНОПКА ===
+local OpenBtnGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+OpenBtnGui.Name = "AI_Draggable_UI"
+local Btn = Instance.new("TextButton", OpenBtnGui)
+Btn.Size = UDim2.new(0, 50, 0, 50)
+Btn.Position = UDim2.new(0, 10, 0.2, 0)
+Btn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+Btn.Text = "AI"
+Btn.TextColor3 = Color3.new(1,1,1)
+Btn.Font = Enum.Font.GothamBold
+Btn.Active = true
+Btn.Draggable = true
+Instance.new("UICorner", Btn).CornerRadius = UDim.new(1, 0)
+Btn.MouseButton1Click:Connect(function() Library:ToggleUI() end)
+
+-- Авто-запуск стиля (Кот по умолчанию)
+task.spawn(function() task.wait(1.5) ApplyCustomStyle(8932053668) end)
