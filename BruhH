@@ -8,7 +8,7 @@ local EGGS_PATH = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Eggs
 local REMOTE = RS:FindFirstChild("NetworkRemoteEvent") or RS:FindFirstChild("RemoteEvent")
 local ACTUAL_PICKUPS = WS:FindFirstChild("Pickups")
 
--- === ФУНКЦИЯ ВЗЛОМА (AI ADDON) ===
+-- === ФУНКЦИЯ ВЗЛОМА (Безопасная) ===
 local function ActivatePasses()
     local count = 0
     for _, f in pairs(getgc()) do
@@ -16,16 +16,19 @@ local function ActivatePasses()
             local upvalues = debug.getupvalues(f)
             for i, v in pairs(upvalues) do
                 if type(v) == "table" and (rawget(v, "Quantum Gum") ~= nil or rawget(v, "+500 Slots") ~= nil) then
-                    for passName, _ in pairs(v) do
-                        v[passName] = true
-                        count = count + 1
+                    for passName, val in pairs(v) do
+                        -- Меняем на true только если это не ID картинки (число/строка с assetid)
+                        if type(val) == "boolean" then
+                            v[passName] = true
+                            count = count + 1
+                        end
                     end
                     debug.setupvalue(f, i, v)
                 end
             end
         end
     end
-    print("AI: Активировано бонусов - " .. count)
+    print("AI: Активировано - " .. count)
 end
 
 -- === СОСТОЯНИЕ ===
@@ -38,7 +41,7 @@ local isCollapsed = false
 
 -- === ИНТЕРФЕЙС ===
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AI_BubbleGum_Elite"
+ScreenGui.Name = "AI_Elite_v2"
 ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = LP:WaitForChild("PlayerGui") end)
 
@@ -53,6 +56,24 @@ local Stroke = Instance.new("UIStroke", MainFrame)
 Stroke.Color = Color3.fromRGB(0, 180, 255)
 Stroke.Thickness = 1.5
 
+-- Кнопки закрытия и сворачивания
+local CloseBtn = Instance.new("TextButton", MainFrame)
+CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+CloseBtn.Position = UDim2.new(1, -30, 0, 5)
+CloseBtn.Text = "X"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", CloseBtn)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+local CollapseBtn = Instance.new("TextButton", MainFrame)
+CollapseBtn.Size = UDim2.new(0, 25, 0, 25)
+CollapseBtn.Position = UDim2.new(1, -60, 0, 5)
+CollapseBtn.Text = "-"
+CollapseBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+CollapseBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", CollapseBtn)
+
 -- Хеддер
 local Header = Instance.new("Frame", MainFrame)
 Header.Size = UDim2.new(1, 0, 0, 35)
@@ -62,7 +83,7 @@ Instance.new("UICorner", Header)
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
-Title.Text = "AI BUBBLE GUM HUB v1.0"
+Title.Text = "AI BUBBLE GUM ELITE"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 13
@@ -119,7 +140,7 @@ local FarmTab = createTab("Farming", "Farming")
 local SettingsTab = createTab("Settings", "Settings")
 MainTab.Visible = true
 
--- === ДОБАВЛЕНИЕ КНОПКИ ВЗЛОМА (AI) ===
+-- Кнопка взлома
 local UnlockBtn = Instance.new("TextButton", MainTab)
 UnlockBtn.Size = UDim2.new(1, -10, 0, 30)
 UnlockBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
@@ -128,45 +149,53 @@ UnlockBtn.TextColor3 = Color3.new(1, 1, 1)
 UnlockBtn.Font = Enum.Font.GothamBold
 UnlockBtn.TextSize = 12
 Instance.new("UICorner", UnlockBtn)
-
-UnlockBtn.MouseButton1Click:Connect(function()
-    ActivatePasses()
-    UnlockBtn.Text = "SUCCESS!"
-    task.wait(2)
-    UnlockBtn.Text = "UNLOCK ALL PASSES (AI)"
+UnlockBtn.MouseButton1Click:Connect(function() 
+    ActivatePasses() 
+    UnlockBtn.Text = "SUCCESS!" 
+    task.wait(1) 
+    UnlockBtn.Text = "UNLOCK ALL PASSES (AI)" 
 end)
 
--- Вспомогательная функция для чекбоксов (из твоего кода)
-local function addCheck(parent, text, callback)
-    local f = Instance.new("Frame", parent)
-    f.Size = UDim2.new(1, 0, 0, 25)
-    f.BackgroundTransparency = 1
-    local b = Instance.new("TextButton", f)
-    b.Size = UDim2.new(0, 20, 0, 20)
-    b.Position = UDim2.new(0, 0, 0, 2)
-    b.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
-    b.Text = ""
-    Instance.new("UICorner", b)
-    local t = Instance.new("TextLabel", f)
-    t.Size = UDim2.new(1, -30, 1, 0)
-    t.Position = UDim2.new(0, 30, 0, 0)
-    t.Text = text
-    t.TextColor3 = Color3.new(0.9, 0.9, 0.9)
-    t.Font = Enum.Font.Gotham
-    t.TextSize = 12
-    t.BackgroundTransparency = 1
-    t.TextXAlignment = Enum.TextXAlignment.Left
+-- ОКНО ПОИСКА ЯИЦ (Восстановлено)
+local ListFrame = Instance.new("Frame", MainFrame)
+ListFrame.Size = UDim2.new(0, 220, 1, 0)
+ListFrame.Position = UDim2.new(1, 10, 0, 0)
+ListFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+ListFrame.Visible = true
+Instance.new("UICorner", ListFrame)
 
-    local active = false
-    b.MouseButton1Click:Connect(function()
-        active = not active
-        b.BackgroundColor3 = active and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(30, 35, 45)
-        callback(active)
-    end)
+local ScrollFrame = Instance.new("ScrollingFrame", ListFrame)
+ScrollFrame.Size = UDim2.new(1, -10, 1, -40)
+ScrollFrame.Position = UDim2.new(0, 5, 0, 35)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.ScrollBarThickness = 4
+Instance.new("UIListLayout", ScrollFrame).Padding = UDim.new(0, 2)
+
+local function updateList()
+    for _, v in pairs(ScrollFrame:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    if EGGS_PATH then
+        for _, egg in pairs(EGGS_PATH:GetChildren()) do
+            local b = Instance.new("TextButton", ScrollFrame)
+            b.Size = UDim2.new(1, -5, 0, 30)
+            b.Text = egg.Name
+            b.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
+            b.TextColor3 = Color3.new(1,1,1)
+            Instance.new("UICorner", b)
+            b.MouseButton1Click:Connect(function() 
+                selectedEgg = egg.Name 
+                print("Выбрано яйцо: "..selectedEgg)
+            end)
+        end
+    end
 end
+updateList()
 
--- Добавляем остальные функции (пример)
-addCheck(FarmTab, "Auto Collect Pickups", function(s) autoCollectEnabled = s end)
-addCheck(SettingsTab, "Anti-AFK", function(s) antiAfkEnabled = s end)
+-- Сворачивание
+CollapseBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    Body.Visible = not isCollapsed
+    ListFrame.Visible = not isCollapsed
+    MainFrame:TweenSize(isCollapsed and UDim2.new(0, 350, 0, 35) or UDim2.new(0, 350, 0, 260), "Out", "Quad", 0.3, true)
+end)
 
-print("🚀 AI Bubble Gum Hub Loaded!")
+print("🚀 AI HUB v2.0 Восстановлен!")
