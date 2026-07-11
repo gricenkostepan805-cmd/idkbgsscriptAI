@@ -1,595 +1,601 @@
+-- Script Path: game:GetService("ReplicatedStorage").Gui.EggMenu
+-- Took 0.3s to decompile.
+-- Executor: Velocity (1.1.1)
+
+-- https://lua.expert/
 local t = {}
-local Quests = require(game.ReplicatedStorage.Quests)
+
+require(game.ReplicatedStorage.CellTools)
+
+local HCCellTypes = require(game.ReplicatedStorage.HCCellTypes)
+local EggTypes = require(game.ReplicatedStorage.EggTypes)
 local Menus = require(game.ReplicatedStorage.Menus)
-local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
 
 require(game.ReplicatedStorage.Events)
 
-local NPCs = require(game.ReplicatedStorage.NPCs)
-local NumberCommas = require(game.ReplicatedStorage.NumberCommas)
+local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
+local ScreenInfo = require(game.ReplicatedStorage.ScreenInfo)
+local HoneycombTools = require(game.ReplicatedStorage.HoneycombTools)
+local v1 = UDim2.new(0, 90, 0, 90)
+local UserInputService = game:GetService("UserInputService")
+local IsHiveHub = require(game.ReplicatedFirst.PlaceInfo).IsHiveHub
 
-require(game.ReplicatedStorage.TimeString)
-require(game.ReplicatedStorage.GuiColors)
-require(game.ReplicatedStorage.Translation)
-
-local Translate = require(game.ReplicatedStorage.Translate)
-
-ClientStatCache.WaitUntilLoad()
-
-local v1 = script:WaitForChild("Color").Value
-local v2 = v1:lerp(Color3.fromRGB(255, 255, 255), 0.25)
-
-local function udim2(p1, p2) --[[ udim2 | Line: 41 ]]
+local function udim2(p1, p2) --[[ udim2 | Line: 24 ]]
 	return UDim2.new(p1, 0, p2, 0)
 end
 
-local t2 = {
-	EggHunt = {
-		Prefix = "\240\159\144\163",
-		BackgroundColor = Color3.fromRGB(209, 200, 140),
-		TitleBarColor = Color3.fromRGB(236, 227, 158)
-	},
-	EggHuntOld = {
-		Prefix = "\240\159\144\163",
-		BackgroundColor = Color3.fromRGB(134, 206, 159),
-		TitleBarColor = Color3.fromRGB(144, 239, 173)
-	},
-	Xmas = {
-		TitleBarTransparency = 0,
-		BackgroundColor = Color3.fromRGB(208, 47, 29),
-		TitleBarColor = Color3.fromRGB(59, 176, 88),
-		TextColor = Color3.fromRGB(238, 238, 238),
-		TextStroke = Color3.fromRGB(58, 58, 58)
-	},
-	TheGames = {
-		TitleBarTransparency = 0,
-		BackgroundColor = Color3.fromRGB(210, 212, 212),
-		TitleBarColor = Color3.fromRGB(51, 164, 198),
-		TextColor = Color3.fromRGB(238, 238, 238),
-		TextStroke = Color3.fromRGB(37, 90, 113)
-	}
-}
+local v2 = script:WaitForChild("Color").Value
+local EggRow = script:WaitForChild("EggRow")
 
-local function makeProtoQuestBox() --[[ makeProtoQuestBox | Line: 104 | Upvalues: v2 (copy) ]]
-	local QuestBox = Instance.new("Frame")
+ScreenInfo.ResizeGui(EggRow)
 
-	QuestBox.Name = "QuestBox"
-	QuestBox.BackgroundColor3 = v2
-	QuestBox.BorderSizePixel = 0
-	QuestBox.Size = UDim2.new(1, 0, 1, 0)
-
-	local TitleBarBG = Instance.new("TextLabel")
-
-	TitleBarBG.Name = "TitleBarBG"
-	TitleBarBG.Font = "Highway"
-	TitleBarBG.BorderSizePixel = 0
-	TitleBarBG.Parent = QuestBox
-	TitleBarBG.BackgroundColor3 = Color3.new(255, 255, 255)
-	TitleBarBG.BackgroundTransparency = 0.25
-	TitleBarBG.Text = ""
-	TitleBarBG.TextWrapped = true
-	TitleBarBG.Size = UDim2.new(1, 0, 0.26666666666666666, 0)
-	TitleBarBG.Position = UDim2.new(0, 0, 0, 0)
-	TitleBarBG.TextSize = 24
-
-	local TitleBar = TitleBarBG:Clone()
-
-	TitleBar.Name = "TitleBar"
-	TitleBar.BackgroundTransparency = 1
-	TitleBar.Position = UDim2.new(0.025, 0, 0, 0)
-	TitleBar.Size = UDim2.new(0.9, 0, 1, 0)
-	TitleBar.Parent = TitleBarBG
-
-	local TitleStroke = Instance.new("UIStroke")
-
-	TitleStroke.Name = "TitleStroke"
-	TitleStroke.Thickness = 2
-	TitleStroke.Transparency = 1
-	TitleStroke.Parent = TitleBar
-
-	return QuestBox
+if ScreenInfo.CheckIfMobile() then
+	EggRow.BackgroundColor3 = Color3.fromRGB(143, 150, 147)
 end
 
-local function makeProtoTaskBar() --[[ makeProtoTaskBar | Line: 147 ]]
-	local TaskBar = Instance.new("Frame")
+local Size = EggRow.Size
+local v3 = nil
+local v4 = nil
 
-	TaskBar.Name = "TaskBar"
-	TaskBar.BorderSizePixel = 0
-	TaskBar.BackgroundColor3 = Color3.fromRGB(244, 108, 85)
-	TaskBar.Size = UDim2.new(0.9, 0, 0.5, 0)
-	TaskBar.Position = UDim2.new((1 - TaskBar.Size.X.Scale) / 2, 0, 1 - TaskBar.Size.Y.Scale - 0.125, 0)
-	TaskBar.AutoLocalize = false
-
-	local FillBar = TaskBar:Clone()
-
-	FillBar.Name = "FillBar"
-	FillBar.Parent = TaskBar
-	FillBar.BackgroundColor3 = Color3.fromRGB(110, 255, 96)
-	FillBar.AnchorPoint = Vector2.new(0, 0)
-	FillBar.Position = UDim2.new(0, 0, 0, 0)
-	FillBar.Size = UDim2.new(1, 0, 1, 0)
-
-	local Description = Instance.new("TextLabel")
-
-	Description.Name = "Description"
-	Description.Font = "Highway"
-	Description.BorderSizePixel = 0
-	Description.Parent = TaskBar
-	Description.BackgroundColor3 = Color3.new(255, 255, 255)
-	Description.BackgroundTransparency = 1
-	Description.Text = "Temp"
-	Description.TextWrapped = true
-	Description.Size = UDim2.new(1, 0, 1, 0)
-	Description.Position = UDim2.new(0, 0, 0, 0)
-	Description.TextSize = 16
-	Description.AutoLocalize = false
-
-	return TaskBar
+local function menuActive() --[[ menuActive | Line: 64 | Upvalues: v4 (ref), v3 (ref) ]]
+	return v4 and (v4.IsOpen and v3)
 end
 
-local v3 = makeProtoTaskBar()
-local v4 = makeProtoQuestBox()
-local ScreenInfo = require(game.ReplicatedStorage.ScreenInfo)
-
-ScreenInfo.ResizeGui(v3)
-ScreenInfo.ResizeGui(v4)
-
-local v5 = 1
-local v6 = nil
-local v7 = nil
-local v8 = -1
-local v9 = nil
-
-local function makeQuestBox(p1) --[[ makeQuestBox | Line: 220 | Upvalues: Quests (copy), v4 (copy), ClientStatCache (copy), t2 (copy), v3 (copy), Translate (copy) ]]
-	local v1 = Quests:Get(p1)
-
-	if not v1 then
-		return nil
+function t.ArrangeRows(p1) --[[ ArrangeRows | Line: 68 | Upvalues: v4 (ref), v3 (ref), Size (copy) ]]
+	if not (v4 and (v4.IsOpen and v3)) then
+		return
 	end
 
-	if v1.Hidden then
-		return nil
-	end
+	local list = {}
 
-	if v1.Expiration and require(game.ReplicatedStorage.OsTime)() >= v1.Expiration then
-		return nil
-	end
-
-	local t = {
-		Height = 0,
-		Quest = v1,
-		Pos = UDim2.new(0, 0, 0, 0),
-		Obj = v4:Clone(),
-		TaskBars = {},
-		TaskBarProgs = {}
-	}
-	local Tasks = v1.Tasks
-
-	if type(Tasks) == "function" then
-		Tasks = Tasks(ClientStatCache:Get())
-	end
-
-	local v32 = #Tasks
-	local v42 = v32 + 0.75 + v32 * 0.25 + 0.25
-	local v5 = 1 / v42
-	local v6 = 0.25 / v42
-	local v7 = if v1.DisplayName then v1.DisplayName else p1
-
-	if type(v7) == "function" then
-		v7 = v7(ClientStatCache:Get())
-	end
-
-	local v9 = if v1.Theme then t2[v1.Theme] else nil
-
-	if v9 and v9.Prefix then
-		v7 = v9.Prefix .. " " .. v7 .. " " .. v9.Prefix
-	end
-
-	local TitleBar = t.Obj.TitleBarBG.TitleBar
-
-	TitleBar.TextScaled = false
-	TitleBar.Text = v7
-	TitleBar:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() --[[ Line: 296 | Upvalues: TitleBar (copy) ]]
-		TitleBar.TextScaled = not TitleBar.TextFits
-	end)
-	t.Obj.TitleBarBG.Size = UDim2.new(1, 0, 0.75 / v42, 0)
-	t.Height = v42
-	t.TaskBarsToProgDescs = {}
-
-	local v10 = 0.75 / v42
-
-	for i, v in ipairs(Tasks) do
-		local v11 = v3:Clone()
-
-		v11.Parent = t.Obj
-
-		local Description = v.Description
-
-		if Description == nil or v.OverrideDesc then
-			Description = Quests.GetTaskDescription(ClientStatCache:Get(), v)
-		end
-
-		if Description and type(Description) ~= "string" then
-			local v13 = Description(ClientStatCache:Get())
-
-			if type(v13) == "function" then
-				warn("error task", v)
-				warn("quest name", v1.DisplayName or v1.Name)
-				error("desc does not resolve to string")
-			end
-
-			Description = v13
-		end
-
-		if not Description or type(Description) ~= "string" then
-			Description = "error"
-		end
-
-		t.TaskBarsToProgDescs[v11] = v.ProgressDescription
-		v11.Description.Text = Translate(Description)
-		v11.Description.TextScaled = false
-		v11.Description:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() --[[ Line: 377 | Upvalues: v11 (copy) ]]
-			v11.Description.TextScaled = not v11.Description.TextFits
-		end)
-		v11.Size = UDim2.new(0.9, 0, v5, 0)
-		v11.Position = UDim2.new(0.04999999999999999, 0, v10 + v6 + (v5 + v6) * (i - 1), 0)
-		table.insert(t.TaskBars, v11)
-	end
-
-	if v9 then
-		t.Obj.BackgroundColor3 = v9.BackgroundColor
-		t.Obj.TitleBarBG.BackgroundColor3 = v9.TitleBarColor
-		t.Obj.TitleBarBG.BackgroundTransparency = v9.TitleBarTransparency or 0
-
-		if v9.TextColor then
-			t.Obj.TitleBarBG.TitleBar.TextColor3 = v9.TextColor
-		end
-
-		if v9.TextStroke then
-			local TitleStroke = t.Obj.TitleBarBG.TitleBar.TitleStroke
-
-			TitleStroke.Color = v9.TextStroke
-			TitleStroke.Transparency = 0
+	for i, v in ipairs(v3) do
+		if v.Update() then
+			table.insert(list, v)
 		end
 	end
 
-	return t
-end
+	local v2 = UDim2.new(0, 0, 0, Size.Y.Offset * 1.125)
+	local sum = UDim2.new(0, 0, 0, 0)
 
-local function updateQuestTaskBar(p1, p2, p3, p4, p5, p6, p7, p8, p9) --[[ updateQuestTaskBar | Line: 431 | Upvalues: v6 (ref), NumberCommas (copy), Quests (copy), ClientStatCache (copy), Translate (copy) ]]
-	if not p8 and (p2[1] == p3[1] and (p2[2] == p3[2] and p2[3] == p3[3])) then
-		return false
+	for i, v in ipairs(list) do
+		v.Position = sum
+		sum = sum + v2
 	end
 
-	local v3 = math.floor(p2[2])
-	local v4 = p2[3]
-	local v5 = UDim2.new(p2[1], 0, 1, 0)
+	local Offset = sum.Y.Offset
 
-	if p7 or not (v6 and (v6.IsOpen and p1.FillBar.Parent)) then
-		p1.FillBar.Size = v5
-	else
-		p1.FillBar:TweenSize(v5, "Out", "Quad", 0.4, true)
+	if v4.SubmenuButtonsRow then
+		Offset = Offset + v4.SubmenuButtonsRow.AbsoluteSize.Y * 1.5
 	end
 
-	local v62
+	v4.ForcedContentCanvasSize = UDim2.new(1, 0, 0, Offset)
 
-	if v3 < v4 then
-		v62 = if p9.TaskBarsToProgDescs[p1] then p9.TaskBarsToProgDescs[p1](v3, v4) else NumberCommas("" .. v3) .. "/" .. NumberCommas("" .. v4)
-	else
-		if not p1.FillBar:FindFirstChild("BarColorChange") then
-			script.BarColorChange:Clone().Parent = p1.FillBar
+	if v4.Canvas ~= nil then
+		v4.Canvas.CanvasSize = v4.ForcedContentCanvasSize
+	end
+
+	for i, v in ipairs(list) do
+		if p1 then
+			v.Obj.Position = v.Position
+
+			continue
 		end
 
-		v62 = p5
-	end
-
-	local Description = p4.Description
-
-	if Description == nil then
-		Description = Quests.GetTaskDescription(ClientStatCache:Get(), p4)
-	end
-
-	if type(Description) ~= "string" then
-		Description = Description(ClientStatCache:Get())
-	end
-
-	local v11 = Translate((if string.len(Description) < 42 then Description .. "\n" else Description .. " ") .. v62)
-
-	p1.Description.Text = v11
-	p1.Description.TextScaled = string.len(v11) > 80
-
-	return true
-end
-
-local function questBoxUpdateProgress(p1, p2, p3) --[[ questBoxUpdateProgress | Line: 543 | Upvalues: NPCs (copy), ClientStatCache (copy), updateQuestTaskBar (copy) ]]
-	local Quest = p1.Quest
-	local v1 = NPCs.Get(Quest.NPC)
-	local v2 = if p1.GroupQuest or not v1 then "Complete!" else "Complete! Talk to " .. (v1.DisplayName or v1.Name) .. "."
-
-	for i, v in ipairs(p1.TaskBars) do
-		if p2[i][1] < 1 then
-			v2 = "Complete!"
-
-			break
-		end
-	end
-
-	local v4 = if p1.LastCompleteMsg == v2 then false else true
-
-	if v4 then
-		p1.LastCompleteMsg = v2
-	end
-
-	local TaskBarProgs = p1.TaskBarProgs
-	local Tasks = Quest.Tasks
-
-	if type(Tasks) == "function" then
-		Tasks = Tasks(ClientStatCache:Get())
-	end
-
-	for i, v in ipairs(p1.TaskBars) do
-		local v6 = p2[i]
-
-		if updateQuestTaskBar(v, v6, TaskBarProgs[i] or {}, Tasks[i], v2, Quest, p3, v4, p1) then
-			TaskBarProgs[i] = v6
-		end
+		v.Obj:TweenPosition(v.Position, "Out", "Elastic", 0.7, true)
 	end
 end
+function t.Resize() --[[ Resize | Line: 120 ]] end
 
-local v10 = nil
+local function makeDraggable(p1, p2, p3, p4) --[[ makeDraggable | Line: 141 | Upvalues: v4 (ref), UserInputService (copy) ]]
+	local v1 = nil
+	local v2 = 0
 
-function t.StartGroupQuest(p1) --[[ StartGroupQuest | Line: 623 | Upvalues: t (copy) ]]
-	t.Alert()
-	t.UpdateGroupQuest(p1)
-end
-function t.UpdateGroupQuest(p1) --[[ UpdateGroupQuest | Line: 637 | Upvalues: v10 (ref), t (copy) ]]
-	v10 = p1
-	t.Update()
-end
-function t.EndGroupQuest() --[[ EndGroupQuest | Line: 645 | Upvalues: v10 (ref), t (copy) ]]
-	v10 = nil
-	t.Update()
-end
-
-local function createInstance(p1) --[[ createInstance | Line: 661 | Upvalues: ClientStatCache (copy), v5 (ref), Menus (copy), ScreenInfo (copy), v8 (ref), Quests (copy), questBoxUpdateProgress (copy), makeQuestBox (copy), v6 (ref), v7 (ref) ]]
-	ClientStatCache.WaitUntilLoad()
-	v5 = v5 + 1
-
-	local v1 = v5
-	local RowSize = p1.RowSize
-	local _ = RowSize.Y.Scale * 1.05
-	local t = {}
-	local Frame = Instance.new("Frame")
-
-	Frame.BackgroundTransparency = 1
-	Frame.BorderSizePixel = 0
-	Frame.Size = RowSize
-
-	local EmptyMessage = Instance.new("TextLabel")
-
-	EmptyMessage.Name = "EmptyMessage"
-	EmptyMessage.Size = Menus:GetDefaultRowSize()
-	EmptyMessage.BackgroundTransparency = 1
-	EmptyMessage.BorderSizePixel = 0
-	EmptyMessage.TextSize = 34 * ScreenInfo.GetTileScale()
-	EmptyMessage.Font = "Highway"
-	EmptyMessage.TextTransparency = 0.5
-	EmptyMessage.Text = "(No quests)"
-	EmptyMessage.Parent = Frame
-	v8 = -1
-
-	local function instanceUpdate(p12) --[[ instanceUpdate | Line: 699 | Upvalues: v1 (copy), v5 (ref), p1 (copy), v8 (ref), ClientStatCache (ref), t (ref), Quests (ref), questBoxUpdateProgress (ref), makeQuestBox (ref), Frame (copy), RowSize (copy), v6 (ref) ]]
-		if v1 ~= v5 or not p1.IsOpen then
+	p1.InputBegan:Connect(function(p12) --[[ Line: 147 | Upvalues: v4 (ref), p3 (copy), p2 (copy), p4 (copy), v2 (ref), p1 (copy), UserInputService (ref), v1 (ref) ]]
+		if v4 and v4:ChildIsOpen() then
 			return
 		end
 
-		v8 = tick()
-		ClientStatCache:Get()
-
-		local v12 = ClientStatCache:Get()
-		local list = {}
-
-		for i, v in ipairs(t) do
-			if v.GroupQuest then
-				table.insert(list, v)
-
-				continue
-			end
-
-			local v2 = Quests:Progress(v.Quest.Name, v12)
-
-			if v2 == nil then
-				v.Obj:Destroy()
-
-				continue
-			end
-
-			questBoxUpdateProgress(v, v2, p12)
-			table.insert(list, v)
+		if p12.UserInputType ~= Enum.UserInputType.MouseButton1 and p12.UserInputType ~= Enum.UserInputType.Touch then
+			return
 		end
 
-		local list2 = {}
+		if p12.UserInputState ~= Enum.UserInputState.Begin then
+			return
+		end
 
-		for i, v in ipairs(v12.Quests.Active) do
-			local v3 = false
+		if p3 then
+			p3()
+		end
 
-			for i2, v2 in ipairs(list) do
-				if not v2.GroupQuest and v2.Quest.Name == v.Name then
-					v3 = true
+		if p2.Draggable then
+			local v12 = true
+			local Position = p12.Position
+			local v22 = v2 + 1
 
-					break
+			v2 = v22
+
+			local Position2 = p1.Position
+			local v3 = Position2
+
+			local function update(p12) --[[ update | Line: 206 | Upvalues: v12 (ref), v3 (ref), Position (copy), p1 (ref), Position2 (copy) ]]
+				if not v12 then
+					return
+				end
+
+				if p12 ~= v3 then
+					v3 = p12
+
+					local v1 = p12 - Position
+
+					p1.Position = UDim2.new(Position2.X.Scale, Position2.X.Offset + v1.X, Position2.Y.Scale, Position2.Y.Offset + v1.Y)
 				end
 			end
 
-			if not v3 then
-				local v4 = v.Name
-				local v52 = makeQuestBox(v4)
+			p12.Changed:Connect(function(p13) --[[ Line: 216 | Upvalues: p12 (copy), v12 (ref), v3 (ref), Position (copy), p1 (ref), Position2 (copy), p4 (ref) ]]
+				if p12.UserInputState == Enum.UserInputState.Change then
+					local Position3 = p12.Position
 
-				if v52 then
-					v52.Obj.Parent = Frame
-					v52.Obj.Size = UDim2.new(0, RowSize.X.Offset, 0, RowSize.Y.Offset * v52.Height)
-					questBoxUpdateProgress(v52, Quests:Progress(v4, v12), true)
-					table.insert(list2, v52)
-				end
-			end
-		end
-
-		t = list
-
-		for i, v in ipairs(list2) do
-			table.insert(list, v)
-		end
-
-		local sum = UDim2.new(0, 0, 0, 0)
-		local v7 = RowSize.Y.Offset * 0.25
-
-		for i, v in ipairs(list) do
-			sum = sum + UDim2.new(0, 0, 0, v.Obj.Size.Y.Offset + v7)
-		end
-
-		local v82 = sum + UDim2.new(0, 0, 0, v7)
-
-		local function pushQB(p1) --[[ pushQB | Line: 798 | Upvalues: sum (ref), p12 (copy), v6 (ref) ]]
-			sum = sum - (UDim2.new(0, 0, 0.25, 0) + UDim2.new(0, 0, 0, p1.Obj.Size.Y.Offset))
-
-			if p12 or not (v6 and v6.IsOpen) then
-				p1.Obj.Position = sum
-			else
-				p1.Obj:TweenPosition(sum, "Out", "Elastic", 0.7, true)
-			end
-		end
-
-		for i, v in ipairs(list) do
-			pushQB(v)
-		end
-
-		p1.ForceContentCanvasSize(v82)
-	end
-
-	v7 = instanceUpdate
-	instanceUpdate(true)
-
-	return Frame
-end
-
-function t.Create() --[[ Create | Line: 853 | Upvalues: Menus (copy), v1 (copy), createInstance (copy), ClientStatCache (copy), t (copy), v6 (ref) ]]
-	local v12 = Menus.Make("Quests", v1)
-
-	v12.HasTab = true
-	v12.Decal = script:WaitForChild("Icon").Texture
-	v12.BackgroundTransparency = 0.2
-	v12.RowSize = UDim2.new(0, v12.RowSize.X.Offset, 0, v12.RowSize.Y.Offset * 0.5)
-	v12.PreserveScrollPosition = true
-	v12.AddRow(function() --[[ Line: 865 | Upvalues: createInstance (ref), v12 (copy) ]]
-		return createInstance(v12)
-	end)
-	ClientStatCache:OnFullReset(function() --[[ Line: 867 | Upvalues: t (ref) ]]
-		t.Update(true)
-	end)
-	v6 = v12
-
-	return v12
-end
-
-local t3 = {}
-local v11 = -1
-
-function t.AlertCompletions() --[[ AlertCompletions | Line: 887 | Upvalues: ClientStatCache (copy), Quests (copy), t3 (copy), v11 (ref) ]]
-	local v1 = ClientStatCache.WaitUntilLoad()
-
-	for i, v in ipairs(v1.Quests.Active) do
-		local v2
-		local v3 = v.Name
-		local v4 = Quests:Get(v3)
-
-		if v4 then
-			local v5 = if v4.DisplayName then v4.DisplayName else v3
-
-			if type(v5) == "function" then
-				v5 = v5(v1)
-			end
-
-			if not t3[v3] and (not v4.Hidden and (not v4.Expiration or require(game.ReplicatedStorage.OsTime)() < v4.Expiration)) then
-				local v7 = Quests:Progress(v3, v1)
-				local v8 = true
-				local Tasks = v4.Tasks
-
-				if type(Tasks) == "function" then
-					Tasks = Tasks(v1)
-				end
-
-				for i2, v6 in ipairs(Tasks) do
-					if v7[i2][1] < 1 then
-						v8 = false
-
-						break
-					end
-				end
-
-				if v8 then
-					local AlertBoxes = require(game.ReplicatedStorage.AlertBoxes)
-					local v10 = require(game.ReplicatedStorage.NPCs).Get(v4.NPC)
-
-					v2 = if v4.TurnInMessage then "\226\156\133 " .. v4.TurnInMessage elseif v4.Pool or not v10 then "\226\156\133 \"" .. v5 .. "\" is ready to turn in!" else "\226\156\133 \"" .. v5 .. "\" is ready for " .. (v10.DisplayName or v10.Name) .. "!"
-					AlertBoxes:Push(v2, nil)
-
-					if tick() - v11 > 0.3 then
-						v11 = tick()
-						script.Ding:Play()
+					if not v12 then
+						return
 					end
 
-					t3[v3] = true
+					if Position3 ~= v3 then
+						v3 = Position3
+
+						local v1 = Position3 - Position
+
+						p1.Position = UDim2.new(Position2.X.Scale, Position2.X.Offset + v1.X, Position2.Y.Scale, Position2.Y.Offset + v1.Y)
+					end
+				else
+					if p12.UserInputState ~= Enum.UserInputState.End then
+						return
+					end
+
+					v12 = false
+
+					if not p4 then
+						return
+					end
+
+					p4()
+				end
+			end)
+
+			if (UserInputService.MouseEnabled or UserInputService.GamepadEnabled) and p12.UserInputType == Enum.UserInputType.MouseButton1 then
+				while v12 and v22 == v22 do
+					if v1 then
+						local Position3 = v1.Position
+
+						if v12 and Position3 ~= v3 then
+							v3 = Position3
+
+							local v42 = Position3 - Position
+
+							p1.Position = UDim2.new(Position2.X.Scale, Position2.X.Offset + v42.X, Position2.Y.Scale, Position2.Y.Offset + v42.Y)
+						end
+					end
+
+					task.wait()
 				end
 			end
-		end
-	end
-end
-function t.Update(p1) --[[ Update | Line: 991 | Upvalues: v7 (ref), v9 (ref), v8 (ref) ]]
-	require(game.ReplicatedStorage.Gui.RoboBearGui).UpdateInfoBox(p1)
-
-	if not v7 then
-		return
-	end
-
-	if p1 then
-		v7(true)
-
-		return
-	end
-
-	if v9 then
-		return
-	end
-
-	local v1 = tick() - v8
-
-	if v1 >= 0.25 then
-		v7()
-	else
-		local v2 = 0.25 - v1
-
-		v9 = true
-
-		local v3 = v7
-
-		task.spawn(function() --[[ Line: 1023 | Upvalues: v2 (copy), v3 (copy), v7 (ref), v9 (ref) ]]
-			task.wait(v2)
-
-			if v3 ~= v7 then
+		else
+			if not p2.Pressable then
 				return
 			end
 
-			v7()
-			v9 = nil
+			p12.Changed:Connect(function(p1) --[[ Line: 171 | Upvalues: p12 (copy), p4 (ref) ]]
+				if p12.UserInputState ~= Enum.UserInputState.End or not p4 then
+					return
+				end
+
+				p4()
+			end)
+		end
+	end)
+	p1.InputChanged:Connect(function(p1) --[[ Line: 249 | Upvalues: p2 (copy), v1 (ref) ]]
+		if not p2.Draggable then
+			return
+		end
+
+		if p1.UserInputType ~= Enum.UserInputType.MouseMovement and p1.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		v1 = p1
+	end)
+end
+
+local function makeRow(p1) --[[ makeRow | Line: 273 | Upvalues: EggTypes (copy), EggRow (copy), ClientStatCache (copy), ScreenInfo (copy), HCCellTypes (copy), t (copy), v4 (ref), v1 (copy), HoneycombTools (copy), makeDraggable (copy) ]]
+	local v12 = EggTypes:GetType(p1)
+
+	if v12.Hidden or v12.HideRow then
+		return nil
+	end
+
+	if not v12 then
+		print("there is no egg of type " .. p1)
+	end
+
+	local v2 = EggRow:Clone()
+	local Description = v2.Description
+	local TypeName = v2.TypeName
+	local EggSlot = v2.EggSlot
+	local Count = EggSlot.Count
+	local OnOff = EggSlot.OnOff
+	local EggIcon = v2.EggSlot.EggIcon
+	local Size = EggIcon.Size
+	local Position = EggIcon.Position
+	local AbsolutePosition = EggIcon.AbsolutePosition
+
+	EggSlot.Image = v12.Icon
+	EggIcon.Image = v12.Icon
+	Description.Text = v12.Description
+	Description.TextScaled = if v12.Description:len() > 90 then true else false
+	TypeName.Text = v12.DisplayName
+
+	if #v12.DisplayName >= 21 then
+		TypeName.TextSize = TypeName.TextSize * 0.8
+	end
+
+	if not v12.DisplaySetting then
+		OnOff:Destroy()
+	end
+
+	local v42 = nil
+	local v5 = false
+	local v6 = 0
+	local t2 = {
+		Visible = false,
+		Draggable = false,
+		EggType = p1,
+		Pos = UDim2.new(0, 0, 0, 0),
+		Obj = v2,
+		Icon = EggIcon
+	}
+
+	function t2.Update() --[[ Update | Line: 332 | Upvalues: ClientStatCache (ref), p1 (copy), t2 (copy), EggIcon (copy), v12 (copy), EggTypes (ref), OnOff (copy), ScreenInfo (ref), Count (copy), EggSlot (copy), HCCellTypes (ref) ]]
+		local v1 = ClientStatCache:Get({ "Eggs", p1 }) or 0
+		local v2 = v1 > 0
+
+		t2.Visible = v2
+		t2.Obj.Visible = v2
+		EggIcon.Draggable = false
+		t2.Draggable = if v2 then if v12.Draggable == nil or v12.Draggable == true then v12.PlayerActive or not v12.Unhatchable else false else v2
+			t2.Pressable = v12.Pressable
+
+			local v5 = EggTypes:GetType(p1)
+
+			if v5.DisplaySetting then
+				function t2.UpdateSettingDisplay() --[[ Line: 354 | Upvalues: v5 (copy), OnOff (ref), ScreenInfo (ref) ]]
+					local v1 = require(game.ReplicatedStorage.ClientStatTools).GetSetting(v5.DisplaySetting)
+
+					if v1 == nil then
+						v1 = true
+					end
+
+					OnOff.TextScaled = false
+					OnOff.TextSize = 20 * ScreenInfo.GetTileScale()
+
+					if v1 then
+						OnOff.Text = "ON"
+						OnOff.TextColor3 = Color3.fromRGB(41, 255, 91)
+					else
+						OnOff.Text = "OFF"
+						OnOff.TextColor3 = Color3.fromRGB(255, 73, 76)
+					end
+				end
+				t2.UpdateSettingDisplay()
+			end
+
+			if v5.Permanent then
+				Count.Text = ""
+			elseif v5.Capacity then
+				Count.Text = v1 .. "/" .. v5.Capacity
+			else
+				Count.Text = "x" .. v1
+			end
+
+			EggSlot.ImageTransparency = 0
+			EggIcon.ImageTransparency = 0
+
+			if v2 and (v5.Unique and not v5.Unhatchable) then
+				local v6 = ClientStatCache:Get("Honeycomb")
+
+				if not v6 then
+					t2.Draggable = false
+					EggIcon.ImageTransparency = 1
+					EggSlot.ImageTransparency = 0.5
+
+					return v2
+				end
+
+				local v7 = HCCellTypes:GetBeeType(v5.CellType)
+
+				for k, v in pairs(v6) do
+					for k2, v8 in pairs(v) do
+						if v7 == v8.Type then
+							t2.Draggable = false
+							EggIcon.ImageTransparency = 1
+							EggSlot.ImageTransparency = 0.5
+
+							break
+						end
+					end
+
+					if not t2.Draggable then
+						break
+					end
+				end
+			end
+
+			return v2
+		end
+		function t2.GrabIcon() --[[ GrabIcon | Line: 435 | Upvalues: EggIcon (copy), EggSlot (copy), Size (copy), Count (copy) ]]
+			EggIcon.Parent = EggSlot
+			EggIcon.Size = Size
+			EggIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+			EggIcon.ImageTransparency = 0
+			Count.Parent = nil
+			Count.Parent = EggSlot
+		end
+		function t2.StopDrag() --[[ StopDrag | Line: 450 | Upvalues: t2 (copy), v5 (ref), v42 (ref), p1 (copy), t (ref) ]]
+			if not t2.Draggable then
+				return
+			end
+
+			if not v5 then
+				return
+			end
+
+			v5 = false
+			t2.GrabIcon()
+
+			if v42 then
+				v42.EggDragUpdate()
+
+				local _, v1, _2 = v42.EggDragEnd(p1)
+
+				v42 = nil
+
+				if v1 then
+					require(game.ReplicatedStorage.Gui.QuestMenu).Update()
+					require(game.ReplicatedStorage.GateManager).UpdateGateColors()
+				end
+			end
+
+			t.Update()
+		end
+		function t2.StartDrag() --[[ StartDrag | Line: 493 | Upvalues: t2 (copy), v12 (copy), v4 (ref), v5 (ref), v6 (ref), EggIcon (copy), EggSlot (copy), v1 (ref), v42 (ref), HoneycombTools (ref), p1 (copy) ]]
+			if t2.Draggable then
+				if v4 then
+					v5 = true
+					v6 = os.clock()
+					EggIcon.Parent = EggSlot
+					EggIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+					EggIcon.Size = v1
+					EggIcon.ImageTransparency = 0.6
+
+					local v13 = EggIcon.AbsolutePosition - v4.Frame.AbsolutePosition
+
+					EggIcon.Parent = v4.Frame
+					EggIcon.Position = UDim2.new(0, v13.X + v1.X.Offset * 0.5, 0, v13.Y + v1.Y.Offset * 0.5)
+					v42 = HoneycombTools.BuildEditor(p1, v4.Frame)
+					v42.EggDragStart()
+					v42.EggDragUpdate()
+					task.spawn(function() --[[ Line: 563 | Upvalues: v5 (ref), v42 (ref) ]]
+						task.wait()
+
+						while v5 and v42 ~= nil do
+							v42.EggDragUpdate()
+							task.wait(0.06666666666666667)
+						end
+					end)
+				end
+			else
+				local Pressable = t2.Pressable
+
+				if Pressable then
+					local BannedPlaceTypes = v12.BannedPlaceTypes
+
+					if BannedPlaceTypes then
+						Pressable = not BannedPlaceTypes[require(game.ReplicatedFirst.PlaceInfo).PlaceType]
+					end
+				end
+
+				if not Pressable then
+					return
+				end
+
+				v12.PressEffect(t2)
+			end
+		end
+		makeDraggable(EggIcon, t2, t2.StartDrag, t2.StopDrag)
+
+		return t2
+	end
+
+	local function createObj() --[[ createObj | Line: 602 | Upvalues: v3 (ref), Menus (copy), ScreenInfo (copy), EggTypes (copy), makeRow (copy), t (copy) ]]
+		v3 = {}
+
+		local EggRows = Instance.new("Frame")
+
+		EggRows.Name = "EggRows"
+		EggRows.BackgroundTransparency = 1
+		EggRows.BorderSizePixel = 0
+
+		local EmptyMessage = Instance.new("TextLabel")
+
+		EmptyMessage.Name = "EmptyMessage"
+		EmptyMessage.Size = Menus:GetDefaultRowSize()
+		EmptyMessage.BackgroundTransparency = 1
+		EmptyMessage.BorderSizePixel = 0
+		EmptyMessage.TextSize = 34 * ScreenInfo.GetTileScale()
+		EmptyMessage.Font = "Highway"
+		EmptyMessage.TextTransparency = 0.5
+		EmptyMessage.Text = "(No eggs or items)"
+		EmptyMessage.Parent = EggRows
+
+		for i, v in ipairs((EggTypes:GetOrderedNames())) do
+			local v2 = makeRow(v)
+
+			if v2 then
+				v2.Obj.Parent = EggRows
+				table.insert(v3, v2)
+			end
+		end
+
+		t.ArrangeRows(true)
+
+		return EggRows
+	end
+
+	function t.UpdateEggType(p1) --[[ UpdateEggType | Line: 644 | Upvalues: v4 (ref), v3 (ref), t (copy) ]]
+		if not (v4 and (v4.IsOpen and v3)) then
+			return
+		end
+
+		local v2 = nil
+
+		for i, v in ipairs(v3) do
+			if v.EggType == p1 then
+				v2 = v
+
+				break
+			end
+		end
+
+		if v2 == nil then
+			return
+		end
+
+		if v2.Visible == v2.Update() then
+			return
+		end
+
+		t.ArrangeRows()
+	end
+	function t.Update() --[[ Update | Line: 672 | Upvalues: v4 (ref), v3 (ref), t (copy) ]]
+		if v4 and (v4.IsOpen and v3) then
+			t.ArrangeRows()
+		end
+	end
+	function t.Create() --[[ Create | Line: 681 ]]
+		local LocalPlayer = game:GetService("Players").LocalPlayer
+
+		-- Пытаемся создать меню
+		local success, menuResult = pcall(function()
+			return Menus.Make("Eggs", v2)
 		end)
+
+		if success and menuResult then
+			v4 = menuResult
+		else
+			v4 = nil
+		end
+
+		-- БРОНЕБОЙНЫЙ ФИКС СТРОКИ 486 (Защита от nil):
+		if v4 and type(v4) == "table" then
+			v4.DisplayName = "Eggs/Items"
+			v4.HasTab = true
+			v4.Decal = script:WaitForChild("Icon").Texture
+			v4.BackgroundTransparency = 0.2
+			v4.PreserveScrollPosition = true
+		else
+			warn("⚠️ [EggMenu Защита] Модуль Menus вернул nil для вкладки Eggs! Пропускаем её настройку, чтобы спасти запуск игры.")
+
+			-- Создаем временную фейк-таблицу в памяти, чтобы другие скрипты, ищущие v4, не падали
+			v4 = { AddChild = function() end, Frame = Instance.new("Frame") }
+		end
+
+		if v2 and v2.lerp then
+			v2:lerp(Color3.fromRGB(255, 255, 255), 0.25)
+		end
+		local function assignButton(p1, p2) --[[ assignButton | Line: 701 ]]
+			local v1 = false
+
+			p1.MouseButton1Click:Connect(function() --[[ Line: 703 | Upvalues: v1 (ref), p2 (copy) ]]
+				if not v1 then
+					v1 = true
+					p2()
+					task.wait(0.1)
+					v1 = false
+				end
+			end)
+		end
+
+		v4.AddRow(function() --[[ Line: 712 | Upvalues: ScreenInfo (ref), v4 (ref) ]]
+			local v1 = script.SubmenuButtons:Clone()
+
+			ScreenInfo.ResizeGui(v1)
+			v4.SubmenuButtonsRow = v1
+
+			local function f2() --[[ Line: 718 ]]
+				require(game.ReplicatedStorage.Gui.StickerMenus.StickerBookMenu).Open()
+			end
+
+			local v3 = false
+
+			v1.ButtonStickerBook.ButtonTop.MouseButton1Click:Connect(function() --[[ Line: 703 | Upvalues: v3 (ref), f2 (copy) ]]
+				if not v3 then
+					v3 = true
+					f2()
+					task.wait(0.1)
+					v3 = false
+				end
+			end)
+
+			local v42 = require(game.ReplicatedStorage.GetLocalPlayerStats)()
+
+			v1.ButtonBeequipCase.Visible = v42 and v42.Eggs.BeequipCase and v42.Eggs.BeequipCase > 0
+
+			local function f6() --[[ Line: 728 ]]
+				require(game.ReplicatedStorage.Gui.BeequipMenus.BeequipMenuManager).GetByName("Beequip Case"):Open()
+			end
+
+			local v7 = false
+
+			v1.ButtonBeequipCase.ButtonTop.MouseButton1Click:Connect(function() --[[ Line: 703 | Upvalues: v7 (ref), f6 (copy) ]]
+				if not v7 then
+					v7 = true
+					f6()
+					task.wait(0.1)
+					v7 = false
+				end
+			end)
+
+			return v1
+		end, {
+			Center = true
+		})
+		v4.AddRow(createObj)
+		ClientStatCache:OnRefresh(function() --[[ Line: 739 | Upvalues: t (ref) ]]
+			t.Update()
+		end)
+
+		return v4
 	end
-end
-function t.Alert() --[[ Alert | Line: 1045 | Upvalues: v6 (ref) ]]
-	if not v6 then
-		return
+	function t.GetSingleton() --[[ GetSingleton | Line: 749 | Upvalues: v4 (ref) ]]
+		return v4
+	end
+	function t.Alert() --[[ Alert | Line: 753 | Upvalues: v4 (ref) ]]
+		if not v4 then
+			return
+		end
+
+		v4.Alert()
+	end
+	function t.Open() --[[ Open | Line: 760 | Upvalues: v4 (ref) ]]
+		if not v4 then
+			return
+		end
+
+		v4.Open()
+
+		if not v4.Frame then
+			return
+		end
+
+		v4.Frame:FindFirstChild("Content").CanvasPosition = Vector2.new(0, 0)
 	end
 
-	v6.Alert()
-end
-
-return t
+	return t
