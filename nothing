@@ -1,0 +1,730 @@
+-- MainServer: Core server script for Bee Swarm Simulator restoration
+-- Restructured to use handler tables (avoids Lua 200 local register limit)
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
+
+local Events = require(game.ReplicatedStorage.Events)
+local StatTools = require(game.ReplicatedStorage.StatTools)
+local BeeStats = require(game.ReplicatedStorage.BeeStats)
+local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
+local HoneycombFileTools = require(game.ReplicatedStorage.HoneycombFileTools)
+local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
+local PlayerSessionManager = require(game.ServerStorage.PlayerSessionManager)
+local Collectors = require(game.ReplicatedStorage.Collectors)
+local Backpacks = require(game.ReplicatedStorage.Backpacks)
+local PollenTools = require(game.ServerStorage.PollenTools)
+
+-- DataStore setup (pcall for Studio compatibility)
+local DATA_STORE_KEY = "PlayerData_v1"
+local playerDataStore = nil
+local dataStoreAvailable = false
+pcall(function()
+	playerDataStore = DataStoreService:GetDataStore(DATA_STORE_KEY)
+	dataStoreAvailable = true
+end)
+
+local activePlayerData = {}
+local dirtyPlayers = {}
+local hiveOwnership = {}
+local AUTO_SAVE_INTERVAL = 120
+
+-- ============================================================
+-- DEFAULT PLAYER DATA
+-- ============================================================
+
+local function createDefaultBeeFile(beeType)
+	local typeData = BeeTypes:Get(beeType)
+	if not typeData then return nil end
+	return {
+		Type = beeType,
+		Birth = os.time(),
+		Lvl = 1,
+		Mood = 0.5,
+		Bond = 0,
+		Energy = BeeTypes:GetStat(beeType, "MaxEnergy") or 20,
+		Traits = {},
+		Equips = nil,
+	}
+end
+
+local function createDefaultHoneycomb()
+	local honeycomb = {}
+	local basicBee = createDefaultBeeFile("Basic")
+	if basicBee then
+		honeycomb["x1"] = {}
+		honeycomb["x1"]["y1"] = basicBee
+	end
+	return honeycomb
+end
+
+local function createDefaultPlayerData()
+	return {
+		Honey = 0,
+		Pollen = 0,
+		Honeycomb = createDefaultHoneycomb(),
+		DiscoveredBees = { 1 },
+		DiscGiftTypes = {},
+		Eggs = {},
+		Flags = {},
+		Settings = {},
+		Badges = {},
+		Cubs = { TotalGiven = 0, Active = true, EquippedID = nil, Skins = {}, Files = {} },
+		RoboChallenges = {},
+		SystemTimes = {},
+		Collectors = { "Scooper" },
+		EquippedCollector = "Scooper",
+		Backpacks = { "Pouch" },
+		EquippedBackpack = "Pouch",
+		Totals = {
+			Honey = 0,
+			Pollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} },
+			Puffshrooms = { Total = 0, ByLvl = {}, ByZone = {}, ByRarity = {} },
+			ChallengePollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} },
+		},
+		Beequips = {
+			Case = {},
+			CaseSize = 5,
+			Storage = {},
+			StorageSize = 10,
+			Inbox = {},
+			Permanents = {},
+		},
+		Stickers = {},
+		Quests = {},
+		Items = {},
+		LoadTime = os.time(),
+		PlaytimeAtLoad = 0,
+		OfflineProgressTime = 0,
+		ServerSide = { Flags = {}, SystemTimes = {}, IntervalBackups = {} },
+	}
+end
+
+-- ============================================================
+-- DATA STORE OPERATIONS
+-- ============================================================
+
+local function loadPlayerData(userId)
+	if not dataStoreAvailable then return nil end
+	local success, data = pcall(function()
+		return playerDataStore:GetAsync("Player_" .. userId)
+	end)
+	if success and data then
+		if type(data) == "string" then
+			local ok, decoded = pcall(function() return HttpService:JSONDecode(data) end)
+			if ok then return decoded end
+		elseif type(data) == "table" then
+			return data
+		end
+	end
+	return nil
+end
+
+local function savePlayerData(userId)
+	if not dataStoreAvailable then return end
+	local stats = activePlayerData[userId]
+	if not stats then return end
+	local saveData = {}
+	for k, v in pairs(stats) do
+		if k ~= "ServerSide" then saveData[k] = v end
+	end
+	local success, err = pcall(function()
+		playerDataStore:SetAsync("Player_" .. userId, saveData)
+	end)
+	if success then
+		dirtyPlayers[userId] = nil
+	else
+		warn("Failed to save data for user " .. userId .. ": " .. tostring(err))
+	end
+end
+
+-- ============================================================
+-- PLAYER DATA MANAGEMENT
+-- ============================================================
+
+local function getPlayerData(player)
+	return activePlayerData[player.UserId]
+end
+
+local function createCoreStats(player)
+	local existing = player:FindFirstChild("CoreStats")
+	if existing then existing:Destroy() end
+
+	local coreStats = Instance.new("Folder")
+	coreStats.Name = "CoreStats"
+	coreStats.Parent = player
+
+	local honeyVal = Instance.new("NumberValue")
+	honeyVal.Name = "Honey"
+	honeyVal.Value = 0
+	honeyVal.Parent = coreStats
+
+	local pollenVal = Instance.new("NumberValue")
+	pollenVal.Name = "Pollen"
+	pollenVal.Value = 0
+	pollenVal.Parent = coreStats
+
+	local capacityVal = Instance.new("NumberValue")
+	capacityVal.Name = "Capacity"
+	capacityVal.Value = 200
+	capacityVal.Parent = coreStats
+
+	return coreStats
+end
+
+local function syncCoreStats(player)
+	local stats = getPlayerData(player)
+	if not stats then return end
+
+	local coreStats = player:FindFirstChild("CoreStats")
+	if not coreStats then
+		coreStats = createCoreStats(player)
+	end
+
+	local honeyVal = coreStats:FindFirstChild("Honey")
+	if honeyVal then honeyVal.Value = math.floor(stats.Honey or 0) end
+
+	local pollenVal = coreStats:FindFirstChild("Pollen")
+	if pollenVal then pollenVal.Value = stats.Pollen or 0 end
+
+	local capacityVal = coreStats:FindFirstChild("Capacity")
+	if capacityVal then capacityVal.Value = PollenTools.GetCapacity(player) end
+end
+
+local function convertAccessoryToTool(accessory, name)
+	local tool = Instance.new("Tool")
+	tool.Name = name
+	tool.RequiresHandle = true
+	tool.CanBeDropped = false
+
+	local children = accessory:GetChildren()
+	for _, child in ipairs(children) do
+		if child:IsA("Weld") then
+			child.Parent = nil
+		else
+			child.Parent = tool
+		end
+	end
+
+	local handle = tool:FindFirstChild("Handle")
+	if handle then
+		tool.Grip = handle.CFrame:Inverse()
+	end
+
+	accessory:Destroy()
+	return tool
+end
+
+local function giveStarterTools(player, character)
+	if not character then return end
+
+	local stats = getPlayerData(player)
+	if not stats then return end
+
+	local equippedCollector = stats.EquippedCollector or "Scooper"
+	local collectorData = Collectors.Get(equippedCollector)
+	if collectorData and collectorData.Model then
+		local model = collectorData.Model:Clone()
+		model.Name = equippedCollector
+		for _, part in model:GetDescendants() do
+			if part:IsA("BasePart") then
+				part.Anchored = false
+			end
+		end
+
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			if model:IsA("Tool") then
+				humanoid:EquipTool(model)
+			elseif model:IsA("Accessory") then
+				local tool = convertAccessoryToTool(model, equippedCollector)
+				humanoid:EquipTool(tool)
+			else
+				model.Parent = character
+			end
+		end
+	end
+
+	local equippedBP = stats.EquippedBackpack or "Pouch"
+	if equippedBP ~= "None" then
+		local bpModel = Backpacks.Make(equippedBP)
+		if bpModel and character then
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				humanoid:AddAccessory(bpModel)
+			end
+		end
+	end
+end
+
+local function initializePlayerData(player)
+	local userId = player.UserId
+	local savedData = loadPlayerData(userId)
+	local stats
+	if savedData then
+		stats = savedData
+		if not stats.Honeycomb then stats.Honeycomb = createDefaultHoneycomb() end
+		if not stats.Totals then stats.Totals = createDefaultPlayerData().Totals end
+		if not stats.Eggs then stats.Eggs = {} end
+		if not stats.Flags then stats.Flags = {} end
+		if not stats.Settings then stats.Settings = {} end
+		if not stats.Badges then stats.Badges = {} end
+		if not stats.DiscoveredBees then stats.DiscoveredBees = { 1 } end
+		if not stats.DiscGiftTypes then stats.DiscGiftTypes = {} end
+		if not stats.Quests then stats.Quests = {} end
+		if not stats.Items then stats.Items = {} end
+		if not stats.Cubs then stats.Cubs = { TotalGiven = 0, Active = true, EquippedID = nil, Skins = {}, Files = {} } end
+		if not stats.RoboChallenges then stats.RoboChallenges = {} end
+		if not stats.SystemTimes then stats.SystemTimes = {} end
+		if not stats.ServerSide then stats.ServerSide = { Flags = {}, SystemTimes = {}, IntervalBackups = {} } end
+		if not stats.Totals.Pollen then stats.Totals.Pollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} } end
+		if not stats.Totals.Puffshrooms then stats.Totals.Puffshrooms = { Total = 0, ByLvl = {}, ByZone = {}, ByRarity = {} } end
+		if not stats.Totals.ChallengePollen then stats.Totals.ChallengePollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} } end
+		if not stats.Totals.Honey then stats.Totals.Honey = 0 end
+		if not stats.Pollen then stats.Pollen = 0 end
+	else
+		stats = createDefaultPlayerData()
+	end
+
+	Collectors.SyncStats(stats)
+	Backpacks.SyncStats(stats)
+
+	stats.LoadTime = os.time()
+	if not stats.PlaytimeAtLoad then stats.PlaytimeAtLoad = 0 end
+	activePlayerData[userId] = stats
+	PlayerStatManager.SetStats(player, stats)
+	dirtyPlayers[userId] = true
+
+	createCoreStats(player)
+	syncCoreStats(player)
+
+	return stats
+end
+
+local function removePlayerData(player)
+	local userId = player.UserId
+	if activePlayerData[userId] then
+		savePlayerData(userId)
+		activePlayerData[userId] = nil
+		dirtyPlayers[userId] = nil
+	end
+end
+
+-- ============================================================
+-- HANDLER TABLES
+-- ============================================================
+
+local rfHandlers = {}
+local reHandlers = {}
+
+rfHandlers.RetrievePlayerStats = function(player)
+	local stats = getPlayerData(player)
+	if not stats then stats = initializePlayerData(player) end
+	return stats
+end
+
+rfHandlers.RetrievePlayerStat = function(player, statPath)
+	local stats = getPlayerData(player)
+	if not stats then return nil end
+	if type(statPath) == "string" then return stats[statPath]
+	elseif type(statPath) == "table" then return StatTools.Get(stats, statPath) end
+	return nil
+end
+
+rfHandlers.RetrieveCachedPlayerStat = function(player, statPath)
+	return rfHandlers.RetrievePlayerStat(player, statPath)
+end
+
+rfHandlers.RetrievePlayerStatsSummary = function(player)
+	local stats = getPlayerData(player)
+	if not stats then return nil end
+	return { Honey = stats.Honey or 0, BeeCount = HoneycombFileTools.Count(stats.Honeycomb), QuestCount = stats.Quests and #stats.Quests or 0 }
+end
+
+rfHandlers.RetrieveBeeInfoSummary = function(player)
+	local stats = getPlayerData(player)
+	if not stats or not stats.Honeycomb then return {} end
+	local summary = {}
+	HoneycombFileTools.ForEachBee(stats.Honeycomb, function(beeFile)
+		if beeFile and beeFile.Type then table.insert(summary, { Type = beeFile.Type, Level = beeFile.Lvl or 1 }) end
+	end)
+	return summary
+end
+
+rfHandlers.ConstructHiveCellFromEgg = function(player, eggType, slotX, slotY)
+	local stats = getPlayerData(player)
+	if not stats then return false, "Player data not loaded" end
+	if not stats.Eggs then stats.Eggs = {} end
+	local eggCount = stats.Eggs[eggType] or 0
+	if eggCount <= 0 then return false, "No egg of this type" end
+	if not stats.Honeycomb then stats.Honeycomb = {} end
+	local xKey, yKey = "x" .. slotX, "y" .. slotY
+	if not stats.Honeycomb[xKey] then stats.Honeycomb[xKey] = {} end
+	if stats.Honeycomb[xKey][yKey] then return false, "Slot already occupied" end
+	local beeTypeName = string.gsub(eggType, "Egg$", "")
+	beeTypeName = string.gsub(beeTypeName, "Bee$", "")
+	beeTypeName = string.gsub(beeTypeName, "Jelly$", "")
+	local beeTypeData = BeeTypes:Get(beeTypeName)
+	if not beeTypeData then
+		beeTypeData = BeeTypes:Get(beeTypeName .. "Bee")
+		if beeTypeData then beeTypeName = beeTypeName .. "Bee" end
+	end
+	if not beeTypeData then return false, "Unknown bee type from egg: " .. eggType end
+	local beeFile = createDefaultBeeFile(beeTypeName)
+	if not beeFile then return false, "Failed to create bee" end
+	stats.Honeycomb[xKey][yKey] = beeFile
+	stats.Eggs[eggType] = eggCount - 1
+	if stats.Eggs[eggType] <= 0 then stats.Eggs[eggType] = nil end
+	if beeTypeData.ID then
+		local found = false
+		for _, id in ipairs(stats.DiscoveredBees or {}) do
+			if id == beeTypeData.ID then found = true; break end
+		end
+		if not found then
+			if not stats.DiscoveredBees then stats.DiscoveredBees = {} end
+			table.insert(stats.DiscoveredBees, beeTypeData.ID)
+		end
+	end
+	dirtyPlayers[player.UserId] = true
+	return true, beeFile
+end
+
+rfHandlers.GetBondToLevel = function(player, level) return BeeStats.LvlToTotalBond(level) end
+rfHandlers.GetPromoInfo = function() return nil end
+
+rfHandlers.ItemPackageEvent = function(player, action, ...)
+	local args = { ... }
+	local stats = getPlayerData(player)
+	if action == "Has" then return stats and stats.Items and stats.Items[args[1]] ~= nil or false
+	elseif action == "Take" then
+		if stats and stats.Items and stats.Items[args[1]] then stats.Items[args[1]] = nil; dirtyPlayers[player.UserId] = true; return true end
+		return false
+	elseif action == "Give" then
+		if stats then if not stats.Items then stats.Items = {} end; stats.Items[args[1]] = args[2] or true; dirtyPlayers[player.UserId] = true; return true end
+		return false
+	end
+	return nil
+end
+
+rfHandlers.BlenderCommand = function() return nil end
+rfHandlers.WindShrineDonation = function() return nil end
+rfHandlers.YesNoPromptPopUp = function() return true end
+rfHandlers.FetchDigitalBeeModel = function() return nil end
+rfHandlers.RetrievePlayerStatsIntervalBackups = function(player)
+	local stats = getPlayerData(player)
+	if stats and stats.ServerSide and stats.ServerSide.IntervalBackups then return stats.ServerSide.IntervalBackups end
+	return {}
+end
+
+-- ============================================================
+-- REMOTE EVENT HANDLERS
+-- ============================================================
+
+reHandlers.PlayerSettingsEvent = function(player, key, value)
+	local stats = getPlayerData(player)
+	if stats then if not stats.Settings then stats.Settings = {} end; stats.Settings[key] = value; dirtyPlayers[player.UserId] = true end
+end
+
+reHandlers.ClaimHive = function(player, hivePart)
+	if not hivePart or not hivePart:IsA("Instance") then return end
+	if hiveOwnership[hivePart] then return end
+	for _, ownerId in pairs(hiveOwnership) do if ownerId == player.UserId then return end end
+	hiveOwnership[hivePart] = player.UserId
+	local stats = getPlayerData(player)
+	if stats then StatTools.SetFlag(stats, "HiveClaimed"); dirtyPlayers[player.UserId] = true end
+	if stats and (stats.Pollen or 0) > 0 then
+		local pollen = stats.Pollen
+		stats.Honey = (stats.Honey or 0) + pollen
+		stats.Pollen = 0
+		if stats.Totals then
+			stats.Totals.Honey = (stats.Totals.Honey or 0) + pollen
+		end
+		syncCoreStats(player)
+		dirtyPlayers[player.UserId] = true
+	end
+end
+
+reHandlers.BeeLevelUp = function(player, slotX, slotY)
+	local stats = getPlayerData(player)
+	if not stats or not stats.Honeycomb then return end
+	local beeFile = HoneycombFileTools.GetBeeFile(stats.Honeycomb, slotX, slotY)
+	if not beeFile then return end
+	local lvl = beeFile.Lvl or 1
+	if lvl >= BeeStats.MaxLevel then return end
+	if (beeFile.Bond or 0) < BeeStats.LvlToTotalBond(lvl + 1) then return end
+	beeFile.Lvl = lvl + 1; dirtyPlayers[player.UserId] = true
+end
+
+reHandlers.CompleteQuest = function(player, questId)
+	local stats = getPlayerData(player)
+	if not stats or not stats.Quests then return end
+	for i, quest in ipairs(stats.Quests) do
+		if quest == questId or (type(quest) == "table" and quest.ID == questId) then table.remove(stats.Quests, i); break end
+	end
+	if stats.Totals then StatTools.IncrementTotal(stats, "QuestsCompleted") end
+	dirtyPlayers[player.UserId] = true
+end
+
+reHandlers.CompleteQuestFromPool = function(player, poolName, questId) reHandlers.CompleteQuest(player, questId) end
+
+reHandlers.GiveQuest = function(player, questData)
+	local stats = getPlayerData(player)
+	if not stats then return end
+	if not stats.Quests then stats.Quests = {} end
+	table.insert(stats.Quests, questData); dirtyPlayers[player.UserId] = true
+end
+
+reHandlers.GiveQuestFromPool = function(player, poolName) reHandlers.GiveQuest(player, { ID = "Placeholder", Pool = poolName }) end
+
+reHandlers.PlayerPurchase = function(player, itemKey, cost)
+	local stats = getPlayerData(player)
+	if not stats then return end
+	local honey = stats.Honey or 0
+	if honey < cost then return end
+	stats.Honey = honey - cost
+	if not stats.Items then stats.Items = {} end
+	stats.Items[itemKey] = true
+	syncCoreStats(player)
+	dirtyPlayers[player.UserId] = true
+end
+
+reHandlers.ToolCollect = function(player, collectibleType, amount)
+	amount = amount or 1
+	local stats = getPlayerData(player)
+	if not stats then return end
+
+	if collectibleType == "Pollen" or collectibleType == nil then
+		local capacity = PollenTools.GetCapacity(player)
+		local currentPollen = stats.Pollen or 0
+		if currentPollen < capacity then
+			local toCollect = math.min(amount, capacity - currentPollen)
+			stats.Pollen = currentPollen + toCollect
+			if stats.Totals and stats.Totals.Pollen then
+				stats.Totals.Pollen.All = (stats.Totals.Pollen.All or 0) + toCollect
+			end
+		end
+	else
+		if stats.Totals then StatTools.IncrementTotal(stats, collectibleType, amount) end
+	end
+
+	syncCoreStats(player)
+	dirtyPlayers[player.UserId] = true
+end
+
+reHandlers.PlayerTakeDamage = function(player, damageAmount)
+	local character = player.Character
+	if not character then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health > 0 then humanoid:TakeDamage(damageAmount) end
+end
+
+reHandlers.ItemUseCommand = function(player, itemKey)
+	local stats = getPlayerData(player)
+	if stats and stats.Items and stats.Items[itemKey] then dirtyPlayers[player.UserId] = true end
+end
+
+reHandlers.BadgeEvent = function(player, badgeId, tier)
+	local stats = getPlayerData(player)
+	if stats then if not stats.Badges then stats.Badges = {} end; stats.Badges[badgeId] = tier or 1; dirtyPlayers[player.UserId] = true end
+end
+
+reHandlers.PromoCodeEvent = function(player) Events.ServerCall("ErrorMessage", player, "Invalid promo code") end
+
+reHandlers.ClientSetUpListeners = function(player)
+	local stats = getPlayerData(player)
+	if stats then Events.ServerCall("ClientBuffsInit", player) end
+end
+
+reHandlers.PlayerFullyLoaded = function(player) PlayerSessionManager.AddPlayer(player) end
+
+reHandlers.PlayerHiveCommand = function(player, command, ...)
+	local stats = getPlayerData(player)
+	if not stats then return end
+
+	if command == "Convert" then
+		local pollen = stats.Pollen or 0
+		if pollen > 0 then
+			stats.Honey = (stats.Honey or 0) + pollen
+			if stats.Totals then
+				stats.Totals.Honey = (stats.Totals.Honey or 0) + pollen
+			end
+			stats.Pollen = 0
+			syncCoreStats(player)
+			dirtyPlayers[player.UserId] = true
+		end
+	elseif command == "Toggle" then
+	end
+end
+
+-- Stub handlers
+local stubNames = {
+	"PlayerActivesCommand", "PlayerSprinklerCommand",
+	"BoostMarketEvent", "StationEvent", "SelectNPCOption",
+	"ServerQuestEvent", "ServerBuffEvent", "ServerItemPackEvent", "ServerMonsterEvent",
+	"ServerSystemEvent", "ForceEvent", "ParachuteCommand", "BeeConversionLink",
+	"BeequipEvent", "PlayerCubCommand", "StickBugEvent", "UpdateNightPlatforms",
+	"DigitalBeeEvent", "CollectibleEvent", "CyclingShopEvent",
+	"NectarPotStore", "NectarPotClaim", "FieldBoosterEvent", "BalloonInflate",
+	"RoboBearBeeSelect", "RoboBearUpgradeSelect", "RoboBearRoundStart",
+	"RoboBearReroll", "RoboBearRoundEnd", "RoboBearQuestSelect",
+	"RoboBearUpgradeLock", "RoboBearChallengeEnd", "RoboBearClaimRewards",
+	"FlyingEntityMoveToPart", "FlyingEntityCreate", "FlyingEntityDestroy",
+	"FlyingEntitySetFacingDir", "FlyingEntitySetMovespeed", "FlyingEntitySetFacingPart",
+	"FlyingEntityPlaySound", "FlyingEntityMove", "FlyingEntitySetMonster",
+	"BeeAnimPlay", "BeePopup", "BeeUpdateAppearance", "BeeClientLoaded", "BeeEmote",
+	"StickerPlacement", "StickerPeel", "StickerBookMove", "StickerDiscard",
+	"StickerClaimFromInbox", "StickerBookExpand", "StickerPeelAll", "StickerBookSort",
+	"StickerStackActivate", "StickerPrinterActivate", "HiddenStickerEvent",
+	"StickerIgnoredRequest", "StickerPrinterOtherPlayerActivate",
+	"StickerPublicClick", "StickerRedeemVoucher",
+	"TradePlayerCancel", "TradeUpdateInfo", "TradePlayerRemoveItem",
+	"TradePlayerAccept", "TradePlayerRequestStart", "TradePlayerConfirmStart",
+	"TradePlayerAddItem", "TradePlayerUnaccept", "TradeInformOfRequest",
+	"TradePlayerDenyRequest", "TradeServerHeardRequest", "TradeRequestRescinded",
+	"TradeServerDeniedCall",
+	"PlanterModelLoad", "PlanterModelGrow", "PlanterModelCollect", "PlanterModelUnload",
+	"DupedTokenCreate", "DupedTokenDestroy", "DupedTokenCharge",
+	"DupedTokenUncharge", "DupedTokenCollect",
+	"PoppablePlant_Spawn", "PoppablePlant_Update", "PoppablePlant_Remove",
+	"PoppablePlant_RequestInit",
+	"RetroChallengeBeeSelect", "RetroChallengeUpdateButtons",
+	"RetroChallengeRoundStart", "RetroChallengeGameOver", "RetroChallengeReturnToLobby",
+	"RoboPartyStart", "RoboPartyUpdate", "RoboPartyEnd",
+	"LocalPartEvent", "ScreenGuiEvent", "CharacterGuiEvent", "ClientMusicEvent",
+	"ClientPrint", "LocalAmuletEvent", "ClientAcceptAmulet", "ClientRejectAmulet",
+	"LocalFX", "ServerMessage", "ErrorMessage", "ServerMessagePrompt",
+	"AdminFeedback", "ServerOfferReward", "ServerAbilityTokenEvent",
+	"FieldBoosterUpdateEvent", "ReceiveItems", "ReceiveAlert", "QuestsChanged",
+	"UpdatePlayerNPCState", "PlayerQuickbarEvent", "MemoryMatchEvent",
+	"UpdateXmasTree", "XmasOrnamentComplete", "ClientBuffsInit",
+	"NectarCondenser", "PetalCollected", "ToyEvent", "GolfTargetHit",
+	"MonsterHackEvent", "RoboBearAnimEvent", "FieldCorruptionSet",
+	"ServerShutdown", "TeleportingToPlace", "ServerGroupQuestEvent",
+	"AddRainbowPart", "FetchLeaderboardCache", "PoppablePlant_InitPlants",
+	"ROBLOX_RocketFireEvent", "ROBLOX_SlingshotFire", "ROBLOX_TrowelFire",
+}
+
+for _, name in ipairs(stubNames) do
+	reHandlers[name] = function() end
+end
+
+-- ============================================================
+-- REGISTER ALL HANDLERS
+-- ============================================================
+
+local function registerHandlers()
+	for name, handler in pairs(rfHandlers) do
+		Events.ServerListen(name, handler)
+	end
+	for name, handler in pairs(reHandlers) do
+		Events.ServerListen(name, handler)
+	end
+end
+
+-- ============================================================
+-- PLAYER LIFECYCLE
+-- ============================================================
+
+local function setupLeaderstats(player)
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local honeyStat = Instance.new("NumberValue")
+	honeyStat.Name = "Honey"
+	honeyStat.Value = 0
+	honeyStat.Parent = leaderstats
+
+	local pollenStat = Instance.new("NumberValue")
+	pollenStat.Name = "Pollen"
+	pollenStat.Value = 0
+	pollenStat.Parent = leaderstats
+end
+
+local function onPlayerAdded(player)
+	setupLeaderstats(player)
+	initializePlayerData(player)
+	PlayerStatManager.SetMainServer({ GetPlayerData = getPlayerData })
+
+	local function onCharacterAdded(character)
+		task.wait(1)
+		giveStarterTools(player, character)
+		syncCoreStats(player)
+	end
+
+	-- Handle case where character already exists (race condition fix)
+	if player.Character then
+		task.spawn(onCharacterAdded, player.Character)
+	end
+	player.CharacterAdded:Connect(onCharacterAdded)
+
+	print("[MainServer] Player " .. player.Name .. " data initialized")
+end
+local function onPlayerRemoving(player)
+	removePlayerData(player)
+	PlayerSessionManager.RemovePlayer(player)
+	for hivePart, ownerId in pairs(hiveOwnership) do
+		if ownerId == player.UserId then hiveOwnership[hivePart] = nil end
+	end
+	print("[MainServer] Player " .. player.Name .. " data saved and cleaned up")
+end
+
+-- ============================================================
+-- AUTO-SAVE LOOP
+-- ============================================================
+
+task.spawn(function()
+	while task.wait(AUTO_SAVE_INTERVAL) do
+		for userId, _ in pairs(dirtyPlayers) do
+			if activePlayerData[userId] then
+				savePlayerData(userId)
+				local player = Players:GetPlayerByUserId(userId)
+				if player then syncCoreStats(player) end
+			end
+		end
+	end
+end)
+
+-- ============================================================
+-- PERIODIC CORESTATS SYNC
+-- ============================================================
+
+task.spawn(function()
+	while task.wait(5) do
+		for _, player in ipairs(Players:GetPlayers()) do
+			if activePlayerData[player.UserId] then
+				syncCoreStats(player)
+			end
+		end
+	end
+end)
+
+-- ============================================================
+-- SERVER VERSION
+-- ============================================================
+
+local serverVersion = game.Workspace:FindFirstChild("ServerVersion")
+if serverVersion and serverVersion:IsA("IntValue") then serverVersion.Value = 1 end
+
+-- ============================================================
+-- INITIALIZATION
+-- ============================================================
+
+registerHandlers()
+
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, player)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+game:BindToClose(function()
+	print("[MainServer] Server shutting down, saving all player data...")
+	for userId, _ in pairs(activePlayerData) do savePlayerData(userId) end
+	task.wait(2)
+end)
+
+print("[MainServer] Bee Swarm Simulator server initialized successfully")
+print("[MainServer] DataStore " .. (dataStoreAvailable and "available" or "unavailable (Studio mode)"))
