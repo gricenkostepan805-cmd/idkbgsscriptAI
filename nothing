@@ -1,730 +1,595 @@
--- MainServer: Core server script for Bee Swarm Simulator restoration
--- Restructured to use handler tables (avoids Lua 200 local register limit)
+local t = {}
+local Quests = require(game.ReplicatedStorage.Quests)
+local Menus = require(game.ReplicatedStorage.Menus)
+local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
 
-local Players = game:GetService("Players")
-local DataStoreService = game:GetService("DataStoreService")
-local HttpService = game:GetService("HttpService")
+require(game.ReplicatedStorage.Events)
 
-local Events = require(game.ReplicatedStorage.Events)
-local StatTools = require(game.ReplicatedStorage.StatTools)
-local BeeStats = require(game.ReplicatedStorage.BeeStats)
-local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
-local HoneycombFileTools = require(game.ReplicatedStorage.HoneycombFileTools)
-local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
-local PlayerSessionManager = require(game.ServerStorage.PlayerSessionManager)
-local Collectors = require(game.ReplicatedStorage.Collectors)
-local Backpacks = require(game.ReplicatedStorage.Backpacks)
-local PollenTools = require(game.ServerStorage.PollenTools)
+local NPCs = require(game.ReplicatedStorage.NPCs)
+local NumberCommas = require(game.ReplicatedStorage.NumberCommas)
 
--- DataStore setup (pcall for Studio compatibility)
-local DATA_STORE_KEY = "PlayerData_v1"
-local playerDataStore = nil
-local dataStoreAvailable = false
-pcall(function()
-	playerDataStore = DataStoreService:GetDataStore(DATA_STORE_KEY)
-	dataStoreAvailable = true
-end)
+require(game.ReplicatedStorage.TimeString)
+require(game.ReplicatedStorage.GuiColors)
+require(game.ReplicatedStorage.Translation)
 
-local activePlayerData = {}
-local dirtyPlayers = {}
-local hiveOwnership = {}
-local AUTO_SAVE_INTERVAL = 120
+local Translate = require(game.ReplicatedStorage.Translate)
 
--- ============================================================
--- DEFAULT PLAYER DATA
--- ============================================================
+ClientStatCache.WaitUntilLoad()
 
-local function createDefaultBeeFile(beeType)
-	local typeData = BeeTypes:Get(beeType)
-	if not typeData then return nil end
-	return {
-		Type = beeType,
-		Birth = os.time(),
-		Lvl = 1,
-		Mood = 0.5,
-		Bond = 0,
-		Energy = BeeTypes:GetStat(beeType, "MaxEnergy") or 20,
-		Traits = {},
-		Equips = nil,
+local v1 = script:WaitForChild("Color").Value
+local v2 = v1:lerp(Color3.fromRGB(255, 255, 255), 0.25)
+
+local function udim2(p1, p2) --[[ udim2 | Line: 41 ]]
+	return UDim2.new(p1, 0, p2, 0)
+end
+
+local t2 = {
+	EggHunt = {
+		Prefix = "\240\159\144\163",
+		BackgroundColor = Color3.fromRGB(209, 200, 140),
+		TitleBarColor = Color3.fromRGB(236, 227, 158)
+	},
+	EggHuntOld = {
+		Prefix = "\240\159\144\163",
+		BackgroundColor = Color3.fromRGB(134, 206, 159),
+		TitleBarColor = Color3.fromRGB(144, 239, 173)
+	},
+	Xmas = {
+		TitleBarTransparency = 0,
+		BackgroundColor = Color3.fromRGB(208, 47, 29),
+		TitleBarColor = Color3.fromRGB(59, 176, 88),
+		TextColor = Color3.fromRGB(238, 238, 238),
+		TextStroke = Color3.fromRGB(58, 58, 58)
+	},
+	TheGames = {
+		TitleBarTransparency = 0,
+		BackgroundColor = Color3.fromRGB(210, 212, 212),
+		TitleBarColor = Color3.fromRGB(51, 164, 198),
+		TextColor = Color3.fromRGB(238, 238, 238),
+		TextStroke = Color3.fromRGB(37, 90, 113)
 	}
-end
-
-local function createDefaultHoneycomb()
-	local honeycomb = {}
-	local basicBee = createDefaultBeeFile("Basic")
-	if basicBee then
-		honeycomb["x1"] = {}
-		honeycomb["x1"]["y1"] = basicBee
-	end
-	return honeycomb
-end
-
-local function createDefaultPlayerData()
-	return {
-		Honey = 0,
-		Pollen = 0,
-		Honeycomb = createDefaultHoneycomb(),
-		DiscoveredBees = { 1 },
-		DiscGiftTypes = {},
-		Eggs = {},
-		Flags = {},
-		Settings = {},
-		Badges = {},
-		Cubs = { TotalGiven = 0, Active = true, EquippedID = nil, Skins = {}, Files = {} },
-		RoboChallenges = {},
-		SystemTimes = {},
-		Collectors = { "Scooper" },
-		EquippedCollector = "Scooper",
-		Backpacks = { "Pouch" },
-		EquippedBackpack = "Pouch",
-		Totals = {
-			Honey = 0,
-			Pollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} },
-			Puffshrooms = { Total = 0, ByLvl = {}, ByZone = {}, ByRarity = {} },
-			ChallengePollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} },
-		},
-		Beequips = {
-			Case = {},
-			CaseSize = 5,
-			Storage = {},
-			StorageSize = 10,
-			Inbox = {},
-			Permanents = {},
-		},
-		Stickers = {},
-		Quests = {},
-		Items = {},
-		LoadTime = os.time(),
-		PlaytimeAtLoad = 0,
-		OfflineProgressTime = 0,
-		ServerSide = { Flags = {}, SystemTimes = {}, IntervalBackups = {} },
-	}
-end
-
--- ============================================================
--- DATA STORE OPERATIONS
--- ============================================================
-
-local function loadPlayerData(userId)
-	if not dataStoreAvailable then return nil end
-	local success, data = pcall(function()
-		return playerDataStore:GetAsync("Player_" .. userId)
-	end)
-	if success and data then
-		if type(data) == "string" then
-			local ok, decoded = pcall(function() return HttpService:JSONDecode(data) end)
-			if ok then return decoded end
-		elseif type(data) == "table" then
-			return data
-		end
-	end
-	return nil
-end
-
-local function savePlayerData(userId)
-	if not dataStoreAvailable then return end
-	local stats = activePlayerData[userId]
-	if not stats then return end
-	local saveData = {}
-	for k, v in pairs(stats) do
-		if k ~= "ServerSide" then saveData[k] = v end
-	end
-	local success, err = pcall(function()
-		playerDataStore:SetAsync("Player_" .. userId, saveData)
-	end)
-	if success then
-		dirtyPlayers[userId] = nil
-	else
-		warn("Failed to save data for user " .. userId .. ": " .. tostring(err))
-	end
-end
-
--- ============================================================
--- PLAYER DATA MANAGEMENT
--- ============================================================
-
-local function getPlayerData(player)
-	return activePlayerData[player.UserId]
-end
-
-local function createCoreStats(player)
-	local existing = player:FindFirstChild("CoreStats")
-	if existing then existing:Destroy() end
-
-	local coreStats = Instance.new("Folder")
-	coreStats.Name = "CoreStats"
-	coreStats.Parent = player
-
-	local honeyVal = Instance.new("NumberValue")
-	honeyVal.Name = "Honey"
-	honeyVal.Value = 0
-	honeyVal.Parent = coreStats
-
-	local pollenVal = Instance.new("NumberValue")
-	pollenVal.Name = "Pollen"
-	pollenVal.Value = 0
-	pollenVal.Parent = coreStats
-
-	local capacityVal = Instance.new("NumberValue")
-	capacityVal.Name = "Capacity"
-	capacityVal.Value = 200
-	capacityVal.Parent = coreStats
-
-	return coreStats
-end
-
-local function syncCoreStats(player)
-	local stats = getPlayerData(player)
-	if not stats then return end
-
-	local coreStats = player:FindFirstChild("CoreStats")
-	if not coreStats then
-		coreStats = createCoreStats(player)
-	end
-
-	local honeyVal = coreStats:FindFirstChild("Honey")
-	if honeyVal then honeyVal.Value = math.floor(stats.Honey or 0) end
-
-	local pollenVal = coreStats:FindFirstChild("Pollen")
-	if pollenVal then pollenVal.Value = stats.Pollen or 0 end
-
-	local capacityVal = coreStats:FindFirstChild("Capacity")
-	if capacityVal then capacityVal.Value = PollenTools.GetCapacity(player) end
-end
-
-local function convertAccessoryToTool(accessory, name)
-	local tool = Instance.new("Tool")
-	tool.Name = name
-	tool.RequiresHandle = true
-	tool.CanBeDropped = false
-
-	local children = accessory:GetChildren()
-	for _, child in ipairs(children) do
-		if child:IsA("Weld") then
-			child.Parent = nil
-		else
-			child.Parent = tool
-		end
-	end
-
-	local handle = tool:FindFirstChild("Handle")
-	if handle then
-		tool.Grip = handle.CFrame:Inverse()
-	end
-
-	accessory:Destroy()
-	return tool
-end
-
-local function giveStarterTools(player, character)
-	if not character then return end
-
-	local stats = getPlayerData(player)
-	if not stats then return end
-
-	local equippedCollector = stats.EquippedCollector or "Scooper"
-	local collectorData = Collectors.Get(equippedCollector)
-	if collectorData and collectorData.Model then
-		local model = collectorData.Model:Clone()
-		model.Name = equippedCollector
-		for _, part in model:GetDescendants() do
-			if part:IsA("BasePart") then
-				part.Anchored = false
-			end
-		end
-
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			if model:IsA("Tool") then
-				humanoid:EquipTool(model)
-			elseif model:IsA("Accessory") then
-				local tool = convertAccessoryToTool(model, equippedCollector)
-				humanoid:EquipTool(tool)
-			else
-				model.Parent = character
-			end
-		end
-	end
-
-	local equippedBP = stats.EquippedBackpack or "Pouch"
-	if equippedBP ~= "None" then
-		local bpModel = Backpacks.Make(equippedBP)
-		if bpModel and character then
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-			if humanoid then
-				humanoid:AddAccessory(bpModel)
-			end
-		end
-	end
-end
-
-local function initializePlayerData(player)
-	local userId = player.UserId
-	local savedData = loadPlayerData(userId)
-	local stats
-	if savedData then
-		stats = savedData
-		if not stats.Honeycomb then stats.Honeycomb = createDefaultHoneycomb() end
-		if not stats.Totals then stats.Totals = createDefaultPlayerData().Totals end
-		if not stats.Eggs then stats.Eggs = {} end
-		if not stats.Flags then stats.Flags = {} end
-		if not stats.Settings then stats.Settings = {} end
-		if not stats.Badges then stats.Badges = {} end
-		if not stats.DiscoveredBees then stats.DiscoveredBees = { 1 } end
-		if not stats.DiscGiftTypes then stats.DiscGiftTypes = {} end
-		if not stats.Quests then stats.Quests = {} end
-		if not stats.Items then stats.Items = {} end
-		if not stats.Cubs then stats.Cubs = { TotalGiven = 0, Active = true, EquippedID = nil, Skins = {}, Files = {} } end
-		if not stats.RoboChallenges then stats.RoboChallenges = {} end
-		if not stats.SystemTimes then stats.SystemTimes = {} end
-		if not stats.ServerSide then stats.ServerSide = { Flags = {}, SystemTimes = {}, IntervalBackups = {} } end
-		if not stats.Totals.Pollen then stats.Totals.Pollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} } end
-		if not stats.Totals.Puffshrooms then stats.Totals.Puffshrooms = { Total = 0, ByLvl = {}, ByZone = {}, ByRarity = {} } end
-		if not stats.Totals.ChallengePollen then stats.Totals.ChallengePollen = { All = 0, Zones = {}, ZoneColors = {}, Colors = { White = 0, Red = 0, Blue = 0 }, ByTag = {} } end
-		if not stats.Totals.Honey then stats.Totals.Honey = 0 end
-		if not stats.Pollen then stats.Pollen = 0 end
-	else
-		stats = createDefaultPlayerData()
-	end
-
-	Collectors.SyncStats(stats)
-	Backpacks.SyncStats(stats)
-
-	stats.LoadTime = os.time()
-	if not stats.PlaytimeAtLoad then stats.PlaytimeAtLoad = 0 end
-	activePlayerData[userId] = stats
-	PlayerStatManager.SetStats(player, stats)
-	dirtyPlayers[userId] = true
-
-	createCoreStats(player)
-	syncCoreStats(player)
-
-	return stats
-end
-
-local function removePlayerData(player)
-	local userId = player.UserId
-	if activePlayerData[userId] then
-		savePlayerData(userId)
-		activePlayerData[userId] = nil
-		dirtyPlayers[userId] = nil
-	end
-end
-
--- ============================================================
--- HANDLER TABLES
--- ============================================================
-
-local rfHandlers = {}
-local reHandlers = {}
-
-rfHandlers.RetrievePlayerStats = function(player)
-	local stats = getPlayerData(player)
-	if not stats then stats = initializePlayerData(player) end
-	return stats
-end
-
-rfHandlers.RetrievePlayerStat = function(player, statPath)
-	local stats = getPlayerData(player)
-	if not stats then return nil end
-	if type(statPath) == "string" then return stats[statPath]
-	elseif type(statPath) == "table" then return StatTools.Get(stats, statPath) end
-	return nil
-end
-
-rfHandlers.RetrieveCachedPlayerStat = function(player, statPath)
-	return rfHandlers.RetrievePlayerStat(player, statPath)
-end
-
-rfHandlers.RetrievePlayerStatsSummary = function(player)
-	local stats = getPlayerData(player)
-	if not stats then return nil end
-	return { Honey = stats.Honey or 0, BeeCount = HoneycombFileTools.Count(stats.Honeycomb), QuestCount = stats.Quests and #stats.Quests or 0 }
-end
-
-rfHandlers.RetrieveBeeInfoSummary = function(player)
-	local stats = getPlayerData(player)
-	if not stats or not stats.Honeycomb then return {} end
-	local summary = {}
-	HoneycombFileTools.ForEachBee(stats.Honeycomb, function(beeFile)
-		if beeFile and beeFile.Type then table.insert(summary, { Type = beeFile.Type, Level = beeFile.Lvl or 1 }) end
-	end)
-	return summary
-end
-
-rfHandlers.ConstructHiveCellFromEgg = function(player, eggType, slotX, slotY)
-	local stats = getPlayerData(player)
-	if not stats then return false, "Player data not loaded" end
-	if not stats.Eggs then stats.Eggs = {} end
-	local eggCount = stats.Eggs[eggType] or 0
-	if eggCount <= 0 then return false, "No egg of this type" end
-	if not stats.Honeycomb then stats.Honeycomb = {} end
-	local xKey, yKey = "x" .. slotX, "y" .. slotY
-	if not stats.Honeycomb[xKey] then stats.Honeycomb[xKey] = {} end
-	if stats.Honeycomb[xKey][yKey] then return false, "Slot already occupied" end
-	local beeTypeName = string.gsub(eggType, "Egg$", "")
-	beeTypeName = string.gsub(beeTypeName, "Bee$", "")
-	beeTypeName = string.gsub(beeTypeName, "Jelly$", "")
-	local beeTypeData = BeeTypes:Get(beeTypeName)
-	if not beeTypeData then
-		beeTypeData = BeeTypes:Get(beeTypeName .. "Bee")
-		if beeTypeData then beeTypeName = beeTypeName .. "Bee" end
-	end
-	if not beeTypeData then return false, "Unknown bee type from egg: " .. eggType end
-	local beeFile = createDefaultBeeFile(beeTypeName)
-	if not beeFile then return false, "Failed to create bee" end
-	stats.Honeycomb[xKey][yKey] = beeFile
-	stats.Eggs[eggType] = eggCount - 1
-	if stats.Eggs[eggType] <= 0 then stats.Eggs[eggType] = nil end
-	if beeTypeData.ID then
-		local found = false
-		for _, id in ipairs(stats.DiscoveredBees or {}) do
-			if id == beeTypeData.ID then found = true; break end
-		end
-		if not found then
-			if not stats.DiscoveredBees then stats.DiscoveredBees = {} end
-			table.insert(stats.DiscoveredBees, beeTypeData.ID)
-		end
-	end
-	dirtyPlayers[player.UserId] = true
-	return true, beeFile
-end
-
-rfHandlers.GetBondToLevel = function(player, level) return BeeStats.LvlToTotalBond(level) end
-rfHandlers.GetPromoInfo = function() return nil end
-
-rfHandlers.ItemPackageEvent = function(player, action, ...)
-	local args = { ... }
-	local stats = getPlayerData(player)
-	if action == "Has" then return stats and stats.Items and stats.Items[args[1]] ~= nil or false
-	elseif action == "Take" then
-		if stats and stats.Items and stats.Items[args[1]] then stats.Items[args[1]] = nil; dirtyPlayers[player.UserId] = true; return true end
-		return false
-	elseif action == "Give" then
-		if stats then if not stats.Items then stats.Items = {} end; stats.Items[args[1]] = args[2] or true; dirtyPlayers[player.UserId] = true; return true end
-		return false
-	end
-	return nil
-end
-
-rfHandlers.BlenderCommand = function() return nil end
-rfHandlers.WindShrineDonation = function() return nil end
-rfHandlers.YesNoPromptPopUp = function() return true end
-rfHandlers.FetchDigitalBeeModel = function() return nil end
-rfHandlers.RetrievePlayerStatsIntervalBackups = function(player)
-	local stats = getPlayerData(player)
-	if stats and stats.ServerSide and stats.ServerSide.IntervalBackups then return stats.ServerSide.IntervalBackups end
-	return {}
-end
-
--- ============================================================
--- REMOTE EVENT HANDLERS
--- ============================================================
-
-reHandlers.PlayerSettingsEvent = function(player, key, value)
-	local stats = getPlayerData(player)
-	if stats then if not stats.Settings then stats.Settings = {} end; stats.Settings[key] = value; dirtyPlayers[player.UserId] = true end
-end
-
-reHandlers.ClaimHive = function(player, hivePart)
-	if not hivePart or not hivePart:IsA("Instance") then return end
-	if hiveOwnership[hivePart] then return end
-	for _, ownerId in pairs(hiveOwnership) do if ownerId == player.UserId then return end end
-	hiveOwnership[hivePart] = player.UserId
-	local stats = getPlayerData(player)
-	if stats then StatTools.SetFlag(stats, "HiveClaimed"); dirtyPlayers[player.UserId] = true end
-	if stats and (stats.Pollen or 0) > 0 then
-		local pollen = stats.Pollen
-		stats.Honey = (stats.Honey or 0) + pollen
-		stats.Pollen = 0
-		if stats.Totals then
-			stats.Totals.Honey = (stats.Totals.Honey or 0) + pollen
-		end
-		syncCoreStats(player)
-		dirtyPlayers[player.UserId] = true
-	end
-end
-
-reHandlers.BeeLevelUp = function(player, slotX, slotY)
-	local stats = getPlayerData(player)
-	if not stats or not stats.Honeycomb then return end
-	local beeFile = HoneycombFileTools.GetBeeFile(stats.Honeycomb, slotX, slotY)
-	if not beeFile then return end
-	local lvl = beeFile.Lvl or 1
-	if lvl >= BeeStats.MaxLevel then return end
-	if (beeFile.Bond or 0) < BeeStats.LvlToTotalBond(lvl + 1) then return end
-	beeFile.Lvl = lvl + 1; dirtyPlayers[player.UserId] = true
-end
-
-reHandlers.CompleteQuest = function(player, questId)
-	local stats = getPlayerData(player)
-	if not stats or not stats.Quests then return end
-	for i, quest in ipairs(stats.Quests) do
-		if quest == questId or (type(quest) == "table" and quest.ID == questId) then table.remove(stats.Quests, i); break end
-	end
-	if stats.Totals then StatTools.IncrementTotal(stats, "QuestsCompleted") end
-	dirtyPlayers[player.UserId] = true
-end
-
-reHandlers.CompleteQuestFromPool = function(player, poolName, questId) reHandlers.CompleteQuest(player, questId) end
-
-reHandlers.GiveQuest = function(player, questData)
-	local stats = getPlayerData(player)
-	if not stats then return end
-	if not stats.Quests then stats.Quests = {} end
-	table.insert(stats.Quests, questData); dirtyPlayers[player.UserId] = true
-end
-
-reHandlers.GiveQuestFromPool = function(player, poolName) reHandlers.GiveQuest(player, { ID = "Placeholder", Pool = poolName }) end
-
-reHandlers.PlayerPurchase = function(player, itemKey, cost)
-	local stats = getPlayerData(player)
-	if not stats then return end
-	local honey = stats.Honey or 0
-	if honey < cost then return end
-	stats.Honey = honey - cost
-	if not stats.Items then stats.Items = {} end
-	stats.Items[itemKey] = true
-	syncCoreStats(player)
-	dirtyPlayers[player.UserId] = true
-end
-
-reHandlers.ToolCollect = function(player, collectibleType, amount)
-	amount = amount or 1
-	local stats = getPlayerData(player)
-	if not stats then return end
-
-	if collectibleType == "Pollen" or collectibleType == nil then
-		local capacity = PollenTools.GetCapacity(player)
-		local currentPollen = stats.Pollen or 0
-		if currentPollen < capacity then
-			local toCollect = math.min(amount, capacity - currentPollen)
-			stats.Pollen = currentPollen + toCollect
-			if stats.Totals and stats.Totals.Pollen then
-				stats.Totals.Pollen.All = (stats.Totals.Pollen.All or 0) + toCollect
-			end
-		end
-	else
-		if stats.Totals then StatTools.IncrementTotal(stats, collectibleType, amount) end
-	end
-
-	syncCoreStats(player)
-	dirtyPlayers[player.UserId] = true
-end
-
-reHandlers.PlayerTakeDamage = function(player, damageAmount)
-	local character = player.Character
-	if not character then return end
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if humanoid and humanoid.Health > 0 then humanoid:TakeDamage(damageAmount) end
-end
-
-reHandlers.ItemUseCommand = function(player, itemKey)
-	local stats = getPlayerData(player)
-	if stats and stats.Items and stats.Items[itemKey] then dirtyPlayers[player.UserId] = true end
-end
-
-reHandlers.BadgeEvent = function(player, badgeId, tier)
-	local stats = getPlayerData(player)
-	if stats then if not stats.Badges then stats.Badges = {} end; stats.Badges[badgeId] = tier or 1; dirtyPlayers[player.UserId] = true end
-end
-
-reHandlers.PromoCodeEvent = function(player) Events.ServerCall("ErrorMessage", player, "Invalid promo code") end
-
-reHandlers.ClientSetUpListeners = function(player)
-	local stats = getPlayerData(player)
-	if stats then Events.ServerCall("ClientBuffsInit", player) end
-end
-
-reHandlers.PlayerFullyLoaded = function(player) PlayerSessionManager.AddPlayer(player) end
-
-reHandlers.PlayerHiveCommand = function(player, command, ...)
-	local stats = getPlayerData(player)
-	if not stats then return end
-
-	if command == "Convert" then
-		local pollen = stats.Pollen or 0
-		if pollen > 0 then
-			stats.Honey = (stats.Honey or 0) + pollen
-			if stats.Totals then
-				stats.Totals.Honey = (stats.Totals.Honey or 0) + pollen
-			end
-			stats.Pollen = 0
-			syncCoreStats(player)
-			dirtyPlayers[player.UserId] = true
-		end
-	elseif command == "Toggle" then
-	end
-end
-
--- Stub handlers
-local stubNames = {
-	"PlayerActivesCommand", "PlayerSprinklerCommand",
-	"BoostMarketEvent", "StationEvent", "SelectNPCOption",
-	"ServerQuestEvent", "ServerBuffEvent", "ServerItemPackEvent", "ServerMonsterEvent",
-	"ServerSystemEvent", "ForceEvent", "ParachuteCommand", "BeeConversionLink",
-	"BeequipEvent", "PlayerCubCommand", "StickBugEvent", "UpdateNightPlatforms",
-	"DigitalBeeEvent", "CollectibleEvent", "CyclingShopEvent",
-	"NectarPotStore", "NectarPotClaim", "FieldBoosterEvent", "BalloonInflate",
-	"RoboBearBeeSelect", "RoboBearUpgradeSelect", "RoboBearRoundStart",
-	"RoboBearReroll", "RoboBearRoundEnd", "RoboBearQuestSelect",
-	"RoboBearUpgradeLock", "RoboBearChallengeEnd", "RoboBearClaimRewards",
-	"FlyingEntityMoveToPart", "FlyingEntityCreate", "FlyingEntityDestroy",
-	"FlyingEntitySetFacingDir", "FlyingEntitySetMovespeed", "FlyingEntitySetFacingPart",
-	"FlyingEntityPlaySound", "FlyingEntityMove", "FlyingEntitySetMonster",
-	"BeeAnimPlay", "BeePopup", "BeeUpdateAppearance", "BeeClientLoaded", "BeeEmote",
-	"StickerPlacement", "StickerPeel", "StickerBookMove", "StickerDiscard",
-	"StickerClaimFromInbox", "StickerBookExpand", "StickerPeelAll", "StickerBookSort",
-	"StickerStackActivate", "StickerPrinterActivate", "HiddenStickerEvent",
-	"StickerIgnoredRequest", "StickerPrinterOtherPlayerActivate",
-	"StickerPublicClick", "StickerRedeemVoucher",
-	"TradePlayerCancel", "TradeUpdateInfo", "TradePlayerRemoveItem",
-	"TradePlayerAccept", "TradePlayerRequestStart", "TradePlayerConfirmStart",
-	"TradePlayerAddItem", "TradePlayerUnaccept", "TradeInformOfRequest",
-	"TradePlayerDenyRequest", "TradeServerHeardRequest", "TradeRequestRescinded",
-	"TradeServerDeniedCall",
-	"PlanterModelLoad", "PlanterModelGrow", "PlanterModelCollect", "PlanterModelUnload",
-	"DupedTokenCreate", "DupedTokenDestroy", "DupedTokenCharge",
-	"DupedTokenUncharge", "DupedTokenCollect",
-	"PoppablePlant_Spawn", "PoppablePlant_Update", "PoppablePlant_Remove",
-	"PoppablePlant_RequestInit",
-	"RetroChallengeBeeSelect", "RetroChallengeUpdateButtons",
-	"RetroChallengeRoundStart", "RetroChallengeGameOver", "RetroChallengeReturnToLobby",
-	"RoboPartyStart", "RoboPartyUpdate", "RoboPartyEnd",
-	"LocalPartEvent", "ScreenGuiEvent", "CharacterGuiEvent", "ClientMusicEvent",
-	"ClientPrint", "LocalAmuletEvent", "ClientAcceptAmulet", "ClientRejectAmulet",
-	"LocalFX", "ServerMessage", "ErrorMessage", "ServerMessagePrompt",
-	"AdminFeedback", "ServerOfferReward", "ServerAbilityTokenEvent",
-	"FieldBoosterUpdateEvent", "ReceiveItems", "ReceiveAlert", "QuestsChanged",
-	"UpdatePlayerNPCState", "PlayerQuickbarEvent", "MemoryMatchEvent",
-	"UpdateXmasTree", "XmasOrnamentComplete", "ClientBuffsInit",
-	"NectarCondenser", "PetalCollected", "ToyEvent", "GolfTargetHit",
-	"MonsterHackEvent", "RoboBearAnimEvent", "FieldCorruptionSet",
-	"ServerShutdown", "TeleportingToPlace", "ServerGroupQuestEvent",
-	"AddRainbowPart", "FetchLeaderboardCache", "PoppablePlant_InitPlants",
-	"ROBLOX_RocketFireEvent", "ROBLOX_SlingshotFire", "ROBLOX_TrowelFire",
 }
 
-for _, name in ipairs(stubNames) do
-	reHandlers[name] = function() end
+local function makeProtoQuestBox() --[[ makeProtoQuestBox | Line: 104 | Upvalues: v2 (copy) ]]
+	local QuestBox = Instance.new("Frame")
+
+	QuestBox.Name = "QuestBox"
+	QuestBox.BackgroundColor3 = v2
+	QuestBox.BorderSizePixel = 0
+	QuestBox.Size = UDim2.new(1, 0, 1, 0)
+
+	local TitleBarBG = Instance.new("TextLabel")
+
+	TitleBarBG.Name = "TitleBarBG"
+	TitleBarBG.Font = "Highway"
+	TitleBarBG.BorderSizePixel = 0
+	TitleBarBG.Parent = QuestBox
+	TitleBarBG.BackgroundColor3 = Color3.new(255, 255, 255)
+	TitleBarBG.BackgroundTransparency = 0.25
+	TitleBarBG.Text = ""
+	TitleBarBG.TextWrapped = true
+	TitleBarBG.Size = UDim2.new(1, 0, 0.26666666666666666, 0)
+	TitleBarBG.Position = UDim2.new(0, 0, 0, 0)
+	TitleBarBG.TextSize = 24
+
+	local TitleBar = TitleBarBG:Clone()
+
+	TitleBar.Name = "TitleBar"
+	TitleBar.BackgroundTransparency = 1
+	TitleBar.Position = UDim2.new(0.025, 0, 0, 0)
+	TitleBar.Size = UDim2.new(0.9, 0, 1, 0)
+	TitleBar.Parent = TitleBarBG
+
+	local TitleStroke = Instance.new("UIStroke")
+
+	TitleStroke.Name = "TitleStroke"
+	TitleStroke.Thickness = 2
+	TitleStroke.Transparency = 1
+	TitleStroke.Parent = TitleBar
+
+	return QuestBox
 end
 
--- ============================================================
--- REGISTER ALL HANDLERS
--- ============================================================
+local function makeProtoTaskBar() --[[ makeProtoTaskBar | Line: 147 ]]
+	local TaskBar = Instance.new("Frame")
 
-local function registerHandlers()
-	for name, handler in pairs(rfHandlers) do
-		Events.ServerListen(name, handler)
+	TaskBar.Name = "TaskBar"
+	TaskBar.BorderSizePixel = 0
+	TaskBar.BackgroundColor3 = Color3.fromRGB(244, 108, 85)
+	TaskBar.Size = UDim2.new(0.9, 0, 0.5, 0)
+	TaskBar.Position = UDim2.new((1 - TaskBar.Size.X.Scale) / 2, 0, 1 - TaskBar.Size.Y.Scale - 0.125, 0)
+	TaskBar.AutoLocalize = false
+
+	local FillBar = TaskBar:Clone()
+
+	FillBar.Name = "FillBar"
+	FillBar.Parent = TaskBar
+	FillBar.BackgroundColor3 = Color3.fromRGB(110, 255, 96)
+	FillBar.AnchorPoint = Vector2.new(0, 0)
+	FillBar.Position = UDim2.new(0, 0, 0, 0)
+	FillBar.Size = UDim2.new(1, 0, 1, 0)
+
+	local Description = Instance.new("TextLabel")
+
+	Description.Name = "Description"
+	Description.Font = "Highway"
+	Description.BorderSizePixel = 0
+	Description.Parent = TaskBar
+	Description.BackgroundColor3 = Color3.new(255, 255, 255)
+	Description.BackgroundTransparency = 1
+	Description.Text = "Temp"
+	Description.TextWrapped = true
+	Description.Size = UDim2.new(1, 0, 1, 0)
+	Description.Position = UDim2.new(0, 0, 0, 0)
+	Description.TextSize = 16
+	Description.AutoLocalize = false
+
+	return TaskBar
+end
+
+local v3 = makeProtoTaskBar()
+local v4 = makeProtoQuestBox()
+local ScreenInfo = require(game.ReplicatedStorage.ScreenInfo)
+
+ScreenInfo.ResizeGui(v3)
+ScreenInfo.ResizeGui(v4)
+
+local v5 = 1
+local v6 = nil
+local v7 = nil
+local v8 = -1
+local v9 = nil
+
+local function makeQuestBox(p1) --[[ makeQuestBox | Line: 220 | Upvalues: Quests (copy), v4 (copy), ClientStatCache (copy), t2 (copy), v3 (copy), Translate (copy) ]]
+	local v1 = Quests:Get(p1)
+
+	if not v1 then
+		return nil
 	end
-	for name, handler in pairs(reHandlers) do
-		Events.ServerListen(name, handler)
+
+	if v1.Hidden then
+		return nil
+	end
+
+	if v1.Expiration and require(game.ReplicatedStorage.OsTime)() >= v1.Expiration then
+		return nil
+	end
+
+	local t = {
+		Height = 0,
+		Quest = v1,
+		Pos = UDim2.new(0, 0, 0, 0),
+		Obj = v4:Clone(),
+		TaskBars = {},
+		TaskBarProgs = {}
+	}
+	local Tasks = v1.Tasks
+
+	if type(Tasks) == "function" then
+		Tasks = Tasks(ClientStatCache:Get())
+	end
+
+	local v32 = #Tasks
+	local v42 = v32 + 0.75 + v32 * 0.25 + 0.25
+	local v5 = 1 / v42
+	local v6 = 0.25 / v42
+	local v7 = if v1.DisplayName then v1.DisplayName else p1
+
+	if type(v7) == "function" then
+		v7 = v7(ClientStatCache:Get())
+	end
+
+	local v9 = if v1.Theme then t2[v1.Theme] else nil
+
+	if v9 and v9.Prefix then
+		v7 = v9.Prefix .. " " .. v7 .. " " .. v9.Prefix
+	end
+
+	local TitleBar = t.Obj.TitleBarBG.TitleBar
+
+	TitleBar.TextScaled = false
+	TitleBar.Text = v7
+	TitleBar:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() --[[ Line: 296 | Upvalues: TitleBar (copy) ]]
+		TitleBar.TextScaled = not TitleBar.TextFits
+	end)
+	t.Obj.TitleBarBG.Size = UDim2.new(1, 0, 0.75 / v42, 0)
+	t.Height = v42
+	t.TaskBarsToProgDescs = {}
+
+	local v10 = 0.75 / v42
+
+	for i, v in ipairs(Tasks) do
+		local v11 = v3:Clone()
+
+		v11.Parent = t.Obj
+
+		local Description = v.Description
+
+		if Description == nil or v.OverrideDesc then
+			Description = Quests.GetTaskDescription(ClientStatCache:Get(), v)
+		end
+
+		if Description and type(Description) ~= "string" then
+			local v13 = Description(ClientStatCache:Get())
+
+			if type(v13) == "function" then
+				warn("error task", v)
+				warn("quest name", v1.DisplayName or v1.Name)
+				error("desc does not resolve to string")
+			end
+
+			Description = v13
+		end
+
+		if not Description or type(Description) ~= "string" then
+			Description = "error"
+		end
+
+		t.TaskBarsToProgDescs[v11] = v.ProgressDescription
+		v11.Description.Text = Translate(Description)
+		v11.Description.TextScaled = false
+		v11.Description:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() --[[ Line: 377 | Upvalues: v11 (copy) ]]
+			v11.Description.TextScaled = not v11.Description.TextFits
+		end)
+		v11.Size = UDim2.new(0.9, 0, v5, 0)
+		v11.Position = UDim2.new(0.04999999999999999, 0, v10 + v6 + (v5 + v6) * (i - 1), 0)
+		table.insert(t.TaskBars, v11)
+	end
+
+	if v9 then
+		t.Obj.BackgroundColor3 = v9.BackgroundColor
+		t.Obj.TitleBarBG.BackgroundColor3 = v9.TitleBarColor
+		t.Obj.TitleBarBG.BackgroundTransparency = v9.TitleBarTransparency or 0
+
+		if v9.TextColor then
+			t.Obj.TitleBarBG.TitleBar.TextColor3 = v9.TextColor
+		end
+
+		if v9.TextStroke then
+			local TitleStroke = t.Obj.TitleBarBG.TitleBar.TitleStroke
+
+			TitleStroke.Color = v9.TextStroke
+			TitleStroke.Transparency = 0
+		end
+	end
+
+	return t
+end
+
+local function updateQuestTaskBar(p1, p2, p3, p4, p5, p6, p7, p8, p9) --[[ updateQuestTaskBar | Line: 431 | Upvalues: v6 (ref), NumberCommas (copy), Quests (copy), ClientStatCache (copy), Translate (copy) ]]
+	if not p8 and (p2[1] == p3[1] and (p2[2] == p3[2] and p2[3] == p3[3])) then
+		return false
+	end
+
+	local v3 = math.floor(p2[2])
+	local v4 = p2[3]
+	local v5 = UDim2.new(p2[1], 0, 1, 0)
+
+	if p7 or not (v6 and (v6.IsOpen and p1.FillBar.Parent)) then
+		p1.FillBar.Size = v5
+	else
+		p1.FillBar:TweenSize(v5, "Out", "Quad", 0.4, true)
+	end
+
+	local v62
+
+	if v3 < v4 then
+		v62 = if p9.TaskBarsToProgDescs[p1] then p9.TaskBarsToProgDescs[p1](v3, v4) else NumberCommas("" .. v3) .. "/" .. NumberCommas("" .. v4)
+	else
+		if not p1.FillBar:FindFirstChild("BarColorChange") then
+			script.BarColorChange:Clone().Parent = p1.FillBar
+		end
+
+		v62 = p5
+	end
+
+	local Description = p4.Description
+
+	if Description == nil then
+		Description = Quests.GetTaskDescription(ClientStatCache:Get(), p4)
+	end
+
+	if type(Description) ~= "string" then
+		Description = Description(ClientStatCache:Get())
+	end
+
+	local v11 = Translate((if string.len(Description) < 42 then Description .. "\n" else Description .. " ") .. v62)
+
+	p1.Description.Text = v11
+	p1.Description.TextScaled = string.len(v11) > 80
+
+	return true
+end
+
+local function questBoxUpdateProgress(p1, p2, p3) --[[ questBoxUpdateProgress | Line: 543 | Upvalues: NPCs (copy), ClientStatCache (copy), updateQuestTaskBar (copy) ]]
+	local Quest = p1.Quest
+	local v1 = NPCs.Get(Quest.NPC)
+	local v2 = if p1.GroupQuest or not v1 then "Complete!" else "Complete! Talk to " .. (v1.DisplayName or v1.Name) .. "."
+
+	for i, v in ipairs(p1.TaskBars) do
+		if p2[i][1] < 1 then
+			v2 = "Complete!"
+
+			break
+		end
+	end
+
+	local v4 = if p1.LastCompleteMsg == v2 then false else true
+
+	if v4 then
+		p1.LastCompleteMsg = v2
+	end
+
+	local TaskBarProgs = p1.TaskBarProgs
+	local Tasks = Quest.Tasks
+
+	if type(Tasks) == "function" then
+		Tasks = Tasks(ClientStatCache:Get())
+	end
+
+	for i, v in ipairs(p1.TaskBars) do
+		local v6 = p2[i]
+
+		if updateQuestTaskBar(v, v6, TaskBarProgs[i] or {}, Tasks[i], v2, Quest, p3, v4, p1) then
+			TaskBarProgs[i] = v6
+		end
 	end
 end
 
--- ============================================================
--- PLAYER LIFECYCLE
--- ============================================================
+local v10 = nil
 
-local function setupLeaderstats(player)
-	local leaderstats = Instance.new("Folder")
-	leaderstats.Name = "leaderstats"
-	leaderstats.Parent = player
-
-	local honeyStat = Instance.new("NumberValue")
-	honeyStat.Name = "Honey"
-	honeyStat.Value = 0
-	honeyStat.Parent = leaderstats
-
-	local pollenStat = Instance.new("NumberValue")
-	pollenStat.Name = "Pollen"
-	pollenStat.Value = 0
-	pollenStat.Parent = leaderstats
+function t.StartGroupQuest(p1) --[[ StartGroupQuest | Line: 623 | Upvalues: t (copy) ]]
+	t.Alert()
+	t.UpdateGroupQuest(p1)
+end
+function t.UpdateGroupQuest(p1) --[[ UpdateGroupQuest | Line: 637 | Upvalues: v10 (ref), t (copy) ]]
+	v10 = p1
+	t.Update()
+end
+function t.EndGroupQuest() --[[ EndGroupQuest | Line: 645 | Upvalues: v10 (ref), t (copy) ]]
+	v10 = nil
+	t.Update()
 end
 
-local function onPlayerAdded(player)
-	setupLeaderstats(player)
-	initializePlayerData(player)
-	PlayerStatManager.SetMainServer({ GetPlayerData = getPlayerData })
+local function createInstance(p1) --[[ createInstance | Line: 661 | Upvalues: ClientStatCache (copy), v5 (ref), Menus (copy), ScreenInfo (copy), v8 (ref), Quests (copy), questBoxUpdateProgress (copy), makeQuestBox (copy), v6 (ref), v7 (ref) ]]
+	ClientStatCache.WaitUntilLoad()
+	v5 = v5 + 1
 
-	local function onCharacterAdded(character)
-		task.wait(1)
-		giveStarterTools(player, character)
-		syncCoreStats(player)
+	local v1 = v5
+	local RowSize = p1.RowSize
+	local _ = RowSize.Y.Scale * 1.05
+	local t = {}
+	local Frame = Instance.new("Frame")
+
+	Frame.BackgroundTransparency = 1
+	Frame.BorderSizePixel = 0
+	Frame.Size = RowSize
+
+	local EmptyMessage = Instance.new("TextLabel")
+
+	EmptyMessage.Name = "EmptyMessage"
+	EmptyMessage.Size = Menus:GetDefaultRowSize()
+	EmptyMessage.BackgroundTransparency = 1
+	EmptyMessage.BorderSizePixel = 0
+	EmptyMessage.TextSize = 34 * ScreenInfo.GetTileScale()
+	EmptyMessage.Font = "Highway"
+	EmptyMessage.TextTransparency = 0.5
+	EmptyMessage.Text = "(No quests)"
+	EmptyMessage.Parent = Frame
+	v8 = -1
+
+	local function instanceUpdate(p12) --[[ instanceUpdate | Line: 699 | Upvalues: v1 (copy), v5 (ref), p1 (copy), v8 (ref), ClientStatCache (ref), t (ref), Quests (ref), questBoxUpdateProgress (ref), makeQuestBox (ref), Frame (copy), RowSize (copy), v6 (ref) ]]
+		if v1 ~= v5 or not p1.IsOpen then
+			return
+		end
+
+		v8 = tick()
+		ClientStatCache:Get()
+
+		local v12 = ClientStatCache:Get()
+		local list = {}
+
+		for i, v in ipairs(t) do
+			if v.GroupQuest then
+				table.insert(list, v)
+
+				continue
+			end
+
+			local v2 = Quests:Progress(v.Quest.Name, v12)
+
+			if v2 == nil then
+				v.Obj:Destroy()
+
+				continue
+			end
+
+			questBoxUpdateProgress(v, v2, p12)
+			table.insert(list, v)
+		end
+
+		local list2 = {}
+
+		for i, v in ipairs(v12.Quests.Active) do
+			local v3 = false
+
+			for i2, v2 in ipairs(list) do
+				if not v2.GroupQuest and v2.Quest.Name == v.Name then
+					v3 = true
+
+					break
+				end
+			end
+
+			if not v3 then
+				local v4 = v.Name
+				local v52 = makeQuestBox(v4)
+
+				if v52 then
+					v52.Obj.Parent = Frame
+					v52.Obj.Size = UDim2.new(0, RowSize.X.Offset, 0, RowSize.Y.Offset * v52.Height)
+					questBoxUpdateProgress(v52, Quests:Progress(v4, v12), true)
+					table.insert(list2, v52)
+				end
+			end
+		end
+
+		t = list
+
+		for i, v in ipairs(list2) do
+			table.insert(list, v)
+		end
+
+		local sum = UDim2.new(0, 0, 0, 0)
+		local v7 = RowSize.Y.Offset * 0.25
+
+		for i, v in ipairs(list) do
+			sum = sum + UDim2.new(0, 0, 0, v.Obj.Size.Y.Offset + v7)
+		end
+
+		local v82 = sum + UDim2.new(0, 0, 0, v7)
+
+		local function pushQB(p1) --[[ pushQB | Line: 798 | Upvalues: sum (ref), p12 (copy), v6 (ref) ]]
+			sum = sum - (UDim2.new(0, 0, 0.25, 0) + UDim2.new(0, 0, 0, p1.Obj.Size.Y.Offset))
+
+			if p12 or not (v6 and v6.IsOpen) then
+				p1.Obj.Position = sum
+			else
+				p1.Obj:TweenPosition(sum, "Out", "Elastic", 0.7, true)
+			end
+		end
+
+		for i, v in ipairs(list) do
+			pushQB(v)
+		end
+
+		p1.ForceContentCanvasSize(v82)
 	end
 
-	-- Handle case where character already exists (race condition fix)
-	if player.Character then
-		task.spawn(onCharacterAdded, player.Character)
-	end
-	player.CharacterAdded:Connect(onCharacterAdded)
+	v7 = instanceUpdate
+	instanceUpdate(true)
 
-	print("[MainServer] Player " .. player.Name .. " data initialized")
+	return Frame
 end
-local function onPlayerRemoving(player)
-	removePlayerData(player)
-	PlayerSessionManager.RemovePlayer(player)
-	for hivePart, ownerId in pairs(hiveOwnership) do
-		if ownerId == player.UserId then hiveOwnership[hivePart] = nil end
-	end
-	print("[MainServer] Player " .. player.Name .. " data saved and cleaned up")
+
+function t.Create() --[[ Create | Line: 853 | Upvalues: Menus (copy), v1 (copy), createInstance (copy), ClientStatCache (copy), t (copy), v6 (ref) ]]
+	local v12 = Menus.Make("Quests", v1)
+
+	v12.HasTab = true
+	v12.Decal = script:WaitForChild("Icon").Texture
+	v12.BackgroundTransparency = 0.2
+	v12.RowSize = UDim2.new(0, v12.RowSize.X.Offset, 0, v12.RowSize.Y.Offset * 0.5)
+	v12.PreserveScrollPosition = true
+	v12.AddRow(function() --[[ Line: 865 | Upvalues: createInstance (ref), v12 (copy) ]]
+		return createInstance(v12)
+	end)
+	ClientStatCache:OnFullReset(function() --[[ Line: 867 | Upvalues: t (ref) ]]
+		t.Update(true)
+	end)
+	v6 = v12
+
+	return v12
 end
 
--- ============================================================
--- AUTO-SAVE LOOP
--- ============================================================
+local t3 = {}
+local v11 = -1
 
-task.spawn(function()
-	while task.wait(AUTO_SAVE_INTERVAL) do
-		for userId, _ in pairs(dirtyPlayers) do
-			if activePlayerData[userId] then
-				savePlayerData(userId)
-				local player = Players:GetPlayerByUserId(userId)
-				if player then syncCoreStats(player) end
+function t.AlertCompletions() --[[ AlertCompletions | Line: 887 | Upvalues: ClientStatCache (copy), Quests (copy), t3 (copy), v11 (ref) ]]
+	local v1 = ClientStatCache.WaitUntilLoad()
+
+	for i, v in ipairs(v1.Quests.Active) do
+		local v2
+		local v3 = v.Name
+		local v4 = Quests:Get(v3)
+
+		if v4 then
+			local v5 = if v4.DisplayName then v4.DisplayName else v3
+
+			if type(v5) == "function" then
+				v5 = v5(v1)
+			end
+
+			if not t3[v3] and (not v4.Hidden and (not v4.Expiration or require(game.ReplicatedStorage.OsTime)() < v4.Expiration)) then
+				local v7 = Quests:Progress(v3, v1)
+				local v8 = true
+				local Tasks = v4.Tasks
+
+				if type(Tasks) == "function" then
+					Tasks = Tasks(v1)
+				end
+
+				for i2, v6 in ipairs(Tasks) do
+					if v7[i2][1] < 1 then
+						v8 = false
+
+						break
+					end
+				end
+
+				if v8 then
+					local AlertBoxes = require(game.ReplicatedStorage.AlertBoxes)
+					local v10 = require(game.ReplicatedStorage.NPCs).Get(v4.NPC)
+
+					v2 = if v4.TurnInMessage then "\226\156\133 " .. v4.TurnInMessage elseif v4.Pool or not v10 then "\226\156\133 \"" .. v5 .. "\" is ready to turn in!" else "\226\156\133 \"" .. v5 .. "\" is ready for " .. (v10.DisplayName or v10.Name) .. "!"
+					AlertBoxes:Push(v2, nil)
+
+					if tick() - v11 > 0.3 then
+						v11 = tick()
+						script.Ding:Play()
+					end
+
+					t3[v3] = true
+				end
 			end
 		end
 	end
-end)
+end
+function t.Update(p1) --[[ Update | Line: 991 | Upvalues: v7 (ref), v9 (ref), v8 (ref) ]]
+	require(game.ReplicatedStorage.Gui.RoboBearGui).UpdateInfoBox(p1)
 
--- ============================================================
--- PERIODIC CORESTATS SYNC
--- ============================================================
-
-task.spawn(function()
-	while task.wait(5) do
-		for _, player in ipairs(Players:GetPlayers()) do
-			if activePlayerData[player.UserId] then
-				syncCoreStats(player)
-			end
-		end
+	if not v7 then
+		return
 	end
-end)
 
--- ============================================================
--- SERVER VERSION
--- ============================================================
+	if p1 then
+		v7(true)
 
-local serverVersion = game.Workspace:FindFirstChild("ServerVersion")
-if serverVersion and serverVersion:IsA("IntValue") then serverVersion.Value = 1 end
+		return
+	end
 
--- ============================================================
--- INITIALIZATION
--- ============================================================
+	if v9 then
+		return
+	end
 
-registerHandlers()
+	local v1 = tick() - v8
 
-for _, player in ipairs(Players:GetPlayers()) do
-	task.spawn(onPlayerAdded, player)
+	if v1 >= 0.25 then
+		v7()
+	else
+		local v2 = 0.25 - v1
+
+		v9 = true
+
+		local v3 = v7
+
+		task.spawn(function() --[[ Line: 1023 | Upvalues: v2 (copy), v3 (copy), v7 (ref), v9 (ref) ]]
+			task.wait(v2)
+
+			if v3 ~= v7 then
+				return
+			end
+
+			v7()
+			v9 = nil
+		end)
+	end
+end
+function t.Alert() --[[ Alert | Line: 1045 | Upvalues: v6 (ref) ]]
+	if not v6 then
+		return
+	end
+
+	v6.Alert()
 end
 
-Players.PlayerAdded:Connect(onPlayerAdded)
-Players.PlayerRemoving:Connect(onPlayerRemoving)
-
-game:BindToClose(function()
-	print("[MainServer] Server shutting down, saving all player data...")
-	for userId, _ in pairs(activePlayerData) do savePlayerData(userId) end
-	task.wait(2)
-end)
-
-print("[MainServer] Bee Swarm Simulator server initialized successfully")
-print("[MainServer] DataStore " .. (dataStoreAvailable and "available" or "unavailable (Studio mode)"))
+return t
