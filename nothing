@@ -1,320 +1,248 @@
--- PlayerTools: Server-side player utility functions
--- Required by TeleportManager, ClassicMinigame scripts, Toys, etc.
--- Provides GetStats, IsLoaded, SetFlag, CheckReqs, CountBees, etc.
-
-local PlayerTools = {}
-
-local PlayerStatManager = require(script.Parent.PlayerStatManager)
-local StatTools = require(game.ReplicatedStorage.StatTools)
-local HoneycombFileTools = require(game.ReplicatedStorage.HoneycombFileTools)
-
-function PlayerTools.GetStats(player)
-	return PlayerStatManager.GetStats(player)
-end
-
-function PlayerTools.IsLoaded(player)
-	local stats = PlayerStatManager.GetStats(player)
-	return stats ~= nil
-end
-
-function PlayerTools.SetFlag(player, flagName, isServerSide)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		StatTools.SetFlag(stats, flagName, isServerSide)
-	end
-end
-
-function PlayerTools.RemoveFlag(player, flagName, isServerSide)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		StatTools.RemoveFlag(stats, flagName, isServerSide)
-	end
-end
-
-function PlayerTools.HasFlag(player, flagName, isServerSide)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return StatTools.HasFlag(stats, flagName, isServerSide)
-	end
-	return false
-end
-
-function PlayerTools.CheckReqs(player, reqs)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return StatTools.CheckReqs(stats, reqs)
-	end
-	return false
-end
-
-function PlayerTools.CountBees(player, filter)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats and stats.Honeycomb then
-		return HoneycombFileTools.Count(stats.Honeycomb, filter)
-	end
-	return 0
-end
-
-function PlayerTools.CheckIfRoboBearChallengeRoundIsRunning(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return StatTools.CheckIfRoboBearChallengeRoundIsRunning(stats)
-	end
-	return false
-end
-
-function PlayerTools.CheckIfRoboBearChallengeIsActive(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return StatTools.CheckIfRoboBearChallengeIsActive(stats)
-	end
-	return false
-end
-
-function PlayerTools.GetHoney(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return stats.Honey or 0
-	end
-	return 0
-end
-
-function PlayerTools.SetHoney(player, amount)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		stats.Honey = amount
-	end
-end
-
-function PlayerTools.AddHoney(player, amount)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		stats.Honey = (stats.Honey or 0) + amount
-	end
-end
-
-function PlayerTools.GetEggs(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return stats.Eggs or {}
-	end
-	return {}
-end
-
-function PlayerTools.GetHoneycomb(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return stats.Honeycomb
-	end
-	return nil
-end
-
-function PlayerTools.GetTotals(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return stats.Totals
-	end
-	return nil
-end
-
-function PlayerTools.GetSettings(player)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		return stats.Settings or {}
-	end
-	return {}
-end
-
-function PlayerTools.SetSetting(player, key, value)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		if not stats.Settings then
-			stats.Settings = {}
-		end
-		stats.Settings[key] = value
-	end
-end
-
--- ============================================================
--- ITEM MANAGEMENT
--- ============================================================
-
-function PlayerTools.TakeItems(player, itemsTable)
-	-- Remove items from the player's inventory
-	-- itemsTable is an array of {Category, Type, Amount} entries
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return false end
-
-	for _, item in ipairs(itemsTable or {}) do
-		if item.Category == "Honey" then
-			stats.Honey = math.max(0, (stats.Honey or 0) - (item.Amount or 0))
-		elseif item.Category == "Eggs" then
-			if stats.Eggs and item.Type then
-				stats.Eggs[item.Type] = math.max(0, (stats.Eggs[item.Type] or 0) - (item.Amount or 0))
-				if stats.Eggs[item.Type] <= 0 then
-					stats.Eggs[item.Type] = nil
-				end
-			end
-		elseif item.Category == "Items" then
-			if stats.Items and item.Type then
-				local current = stats.Items[item.Type]
-				if type(current) == "number" then
-					stats.Items[item.Type] = math.max(0, current - (item.Amount or 1))
-					if stats.Items[item.Type] <= 0 then
-						stats.Items[item.Type] = nil
-					end
-				elseif current ~= nil then
-					stats.Items[item.Type] = nil
-				end
-			end
-		end
-	end
-	return true
-end
-
-function PlayerTools.TakeItem(player, itemTable)
-	-- Remove a single item from the player
-	return PlayerTools.TakeItems(player, { itemTable })
-end
-
-function PlayerTools.GiveItems(player, itemsTable)
-	-- Give items to the player
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return false end
-
-	for _, item in ipairs(itemsTable or {}) do
-		if item.Category == "Honey" then
-			stats.Honey = (stats.Honey or 0) + (item.Amount or 0)
-		elseif item.Category == "Eggs" then
-			if not stats.Eggs then stats.Eggs = {} end
-			if item.Type then
-				stats.Eggs[item.Type] = (stats.Eggs[item.Type] or 0) + (item.Amount or 0)
-			end
-		elseif item.Category == "Items" then
-			if not stats.Items then stats.Items = {} end
-			if item.Type then
-				local current = stats.Items[item.Type]
-				if type(current) == "number" then
-					stats.Items[item.Type] = current + (item.Amount or 1)
-				else
-					stats.Items[item.Type] = item.Amount or true
-				end
-			end
-		elseif item.Category == "Bundle" then
-			if not stats.Totals then stats.Totals = {} end
-			if not stats.Totals.Bundles then stats.Totals.Bundles = {} end
-		end
-	end
-	return true
-end
-
--- ============================================================
--- ALERTS & MESSAGING
--- ============================================================
-
-function PlayerTools.Alert(player, message, color)
-	-- Send an alert message to a specific player
-	local Events = require(game.ReplicatedStorage.Events)
-	Events.ServerCall("ReceiveAlert", player, message, color)
-end
-
-function PlayerTools.AlertAll(message, color)
-	-- Send an alert message to all players
-	local Events = require(game.ReplicatedStorage.Events)
-	Events.ServerCallToAll("ReceiveAlert", message, color)
-end
-
--- ============================================================
--- CACHE MANAGEMENT
--- ============================================================
-
-function PlayerTools.CacheResetStat(player, statName)
-	-- Mark a specific stat as needing refresh on client
-	-- In the original game, this triggers a client stat cache reset for the given stat
-	local Events = require(game.ReplicatedStorage.Events)
-	local stats = PlayerStatManager.GetStats(player)
-	if stats then
-		Events.ServerCall("QuestsChanged", player, statName)
-	end
-end
-
-function PlayerTools.CacheReset(player, statPath)
-	-- Reset the client's cached stat for the given path
-	-- statPath can be a string or table path
-	local Events = require(game.ReplicatedStorage.Events)
-	if type(statPath) == "string" then
-		Events.ServerCall("QuestsChanged", player, statPath)
-	elseif type(statPath) == "table" then
-		Events.ServerCall("QuestsChanged", player, statPath)
-	end
-end
-
--- ============================================================
--- POSITION & ZONE UTILITIES
--- ============================================================
-
-function PlayerTools.GetCFrame(player)
-	-- Get the player's current world position as a CFrame
-	local character = player.Character
-	if character then
-		local rootPart = character:FindFirstChild("HumanoidRootPart")
-		if rootPart then
-			return rootPart.CFrame
-		end
-	end
-	return CFrame.new(0, 5, 0)
-end
-
-function PlayerTools.PlayerToFlowerZone(player)
-	-- Determine which flower field zone the player is in
-	local cframe = PlayerTools.GetCFrame(player)
-	local position = cframe.Position
-
-	-- Check against known field positions
-	-- This is a simplified version - the original uses field boundary detection
-	local fields = {
-		{ Name = "Sunflower", X = -80, Z = 30, Radius = 60 },
-		{ Name = "Dandelion", X = -100, Z = 100, Radius = 50 },
-		{ Name = "Mushroom", X = -100, Z = -50, Radius = 50 },
-		{ Name = "Blue Flower", X = 100, Z = 70, Radius = 50 },
-		{ Name = "Clover", X = -150, Z = 50, Radius = 60 },
-		{ Name = "Spider", X = -50, Z = -100, Radius = 50 },
-		{ Name = "Bamboo", X = 50, Z = -100, Radius = 50 },
-		{ Name = "Strawberry", X = -150, Z = -80, Radius = 50 },
-		{ Name = "Pineapple", X = 100, Z = -150, Radius = 50 },
-		{ Name = "Cactus", X = 150, Z = -100, Radius = 60 },
-		{ Name = "Pumpkin", X = -200, Z = -150, Radius = 50 },
-		{ Name = "Pine Tree", X = -50, Z = -200, Radius = 50 },
-		{ Name = "Rose", X = 200, Z = -200, Radius = 50 },
-		{ Name = "Mountain Top", X = 0, Z = -300, Radius = 50 },
-		{ Name = "Stump", X = 250, Z = 100, Radius = 50 },
-		{ Name = "Pepper", X = 200, Z = 200, Radius = 50 },
+local t = {
+	NEIGHBOR_COORDS = {
+		{ 0, -1 },
+		{ -1, 0 },
+		{ 1, 0 },
+		{ 1, -1 },
+		{ -1, -1 },
+		{ 0, 1 }
 	}
+}
 
-	for _, field in ipairs(fields) do
-		local dist = math.sqrt((position.X - field.X)^2 + (position.Z - field.Z)^2)
-		if dist < field.Radius then
-			return field.Name
+require(game.ReplicatedStorage.HCCellTypes)
+function t.Count(p1, p2) --[[ Count | Line: 18 ]]
+	if not p1 then
+		return 0
+	end
+
+	if not p2 then
+		p2 = {}
+	end
+
+	local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
+	local BeeType = p2.BeeType
+	local Color = p2.Color
+	local Level = p2.Level
+	local Rarity = p2.Rarity
+	local v1 = if p2.Gifted == true then true else false
+	local BeeStats = require(game.ReplicatedStorage.BeeStats)
+
+	local function f2(p1) --[[ Line: 37 | Upvalues: BeeType (copy), Color (copy), BeeTypes (copy), Level (copy), Rarity (copy), v1 (copy), BeeStats (copy) ]]
+		if p1.Type == nil then
+			return 0
 		end
+
+		if BeeType and p1.Type ~= BeeType then
+			return 0
+		end
+
+		if Color and BeeTypes:GetStat(p1.Type, "ColorType") ~= Color then
+			return 0
+		end
+
+		if Level and p1.Lvl < Level then
+			return 0
+		end
+
+		if Rarity and BeeTypes:GetStat(p1.Type, "Rarity") ~= Rarity then
+			return 0
+		end
+
+		if v1 and not BeeStats.HasTrait(p1, "Gifted") then
+			return 0
+		end
+
+		return 1
+	end
+
+	local sum = 0
+
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			sum = sum + f2(v2)
+		end
+	end
+
+	return sum
+end
+function t.CountActiveTypesOfColor(p1, p2, p3) --[[ CountActiveTypesOfColor | Line: 61 | Upvalues: t (copy) ]]
+	if not p1 then
+		return 0
+	end
+
+	local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
+	local t2 = {}
+	local v1 = if p3 then t.GetGiftedMap(p1) else nil
+
+	local function f2(p1) --[[ Line: 78 | Upvalues: p3 (copy), v1 (ref), p2 (copy), BeeTypes (copy), t2 (copy) ]]
+		if p1.Type == nil then
+			return 0
+		end
+
+		if p3 and not v1[p1.Type] then
+			return 0
+		end
+
+		if p2 and p2 == "Colorless" then
+			if BeeTypes:GetStat(p1.Type, "ColorType") ~= "None" then
+				return 0
+			end
+		elseif p2 and BeeTypes:GetStat(p1.Type, "ColorType") ~= p2 then
+			return 0
+		end
+
+		if t2[p1.Type] then
+			return 0
+		end
+
+		t2[p1.Type] = true
+
+		return 1
+	end
+
+	local sum = 0
+
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			sum = sum + f2(v2)
+		end
+	end
+
+	return sum
+end
+function t.CountType(p1, p2) --[[ CountType | Line: 122 | Upvalues: t (copy) ]]
+	return t.Count(p1, {
+		BeeType = p2
+	})
+end
+function t.GetAverageBeeLevel(p1) --[[ GetAverageBeeLevel | Line: 128 ]]
+	local count = 0
+	local sum = 0
+
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			sum = sum + v2.Lvl
+			count = count + 1
+		end
+	end
+
+	return sum / count, count
+end
+function t.GetBeeFile(p1, p2, p3) --[[ GetBeeFile | Line: 148 ]]
+	if not (p2 and p3) then
+		return nil
+	end
+
+	if not p1 then
+		return nil
+	end
+
+	local v1 = p1["x" .. p2]
+
+	if v1 then
+		return v1["y" .. p3]
 	end
 
 	return nil
 end
+function t.GetBeeFileOfType(p1, p2) --[[ GetBeeFileOfType | Line: 159 ]]
+	require(game.ReplicatedStorage.BeeStats)
 
--- ============================================================
--- PLAYER STATE CHECKS
--- ============================================================
+	local v1 = nil
 
-function PlayerTools.IsActive(player)
-	-- Check if the player is active (loaded and in game)
-	if not player then return false end
-	local stats = PlayerStatManager.GetStats(player)
-	return stats ~= nil
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			if v2.Type == p2 then
+				v1 = v2
+
+				break
+			end
+		end
+	end
+
+	return v1
+end
+function t.GetGiftedMap(p1, p2) --[[ GetGiftedMap | Line: 180 ]]
+	if not p1 then
+		return nil
+	end
+
+	local HoneycombTools = require(game.ReplicatedStorage.HoneycombTools)
+
+	HoneycombTools.GetSizeX()
+	HoneycombTools.GetSizeY()
+
+	local BeeStats = require(game.ReplicatedStorage.BeeStats)
+	local t = {}
+
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			if not t[v2.Type] and BeeStats.HasTrait(v2, "Gifted") then
+				local v1 = true
+
+				if p2 then
+					local v22 = require(game.ServerStorage.BeeManager):BeeByFile(v2)
+
+					if not v22 or v22.DisableCounter > 0 then
+						v1 = nil
+					end
+				end
+
+				t[v2.Type] = v1
+			end
+		end
+	end
+
+	return t
+end
+function t.CountUniqueGifteds(p1) --[[ CountUniqueGifteds | Line: 232 | Upvalues: t (copy) ]]
+	local v1 = t.GetGiftedMap(p1)
+
+	if not v1 then
+		return 0
+	end
+
+	local count = 0
+
+	for k, v in pairs(v1) do
+		count = count + 1
+	end
+
+	return count
+end
+function t.HasGiftedType(p1, p2) --[[ HasGiftedType | Line: 252 ]]
+	if not p1 then
+		return false
+	end
+
+	local BeeStats = require(game.ReplicatedStorage.BeeStats)
+
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			if v2.Type == p2 and BeeStats.HasTrait(v2, "Gifted") then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+function t.ForEachBee(p1, p2) --[[ ForEachBee | Line: 273 ]]
+	if not p1 then
+		return false
+	end
+
+	require(game.ReplicatedStorage.BeeStats)
+
+	for k, v in pairs(p1) do
+		for k2, v2 in pairs(v) do
+			if v2 then
+				p2(v2)
+			end
+		end
+	end
+
+	return false
 end
 
-function PlayerTools.IsInGame(player)
-	-- Check if the player is currently in the game world
-	return PlayerTools.IsActive(player)
-end
-
-return PlayerTools
+return t
