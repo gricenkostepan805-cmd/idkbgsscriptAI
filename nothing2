@@ -1,74 +1,50 @@
--- PollenTools: Server-side pollen management utilities
--- Handles pollen conversion, collection, and capacity
+-- =========================================================================
+-- CANONICAL BSS SERVER ENGINE
+-- =========================================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
-local PollenTools = {}
+-- Core modules
+local DataStoreModule = require(ServerStorage:WaitForChild("DataStore"))
+local PlayerTools = require(ServerStorage:WaitForChild("PlayerTools"))
+local PollenTools = require(ServerStorage:WaitForChild("PollenTools"))
+local PlayerStatManager = require(ServerStorage:WaitForChild("PlayerStatManager"))
 
-function PollenTools.InstantConvert(player)
-	-- Instantly convert all pollen in the player's bag to honey
-	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return end
+-- Shared modules
+local Events = require(ReplicatedStorage:WaitForChild("Events"))
+local Backpacks = require(ReplicatedStorage:WaitForChild("Backpacks"))
+local Collectors = require(ReplicatedStorage:WaitForChild("Collectors"))
 
-	-- Add pollen as honey
-	local pollen = stats.Pollen or 0
-	if pollen > 0 then
-		stats.Honey = (stats.Honey or 0) + pollen
-		stats.Pollen = 0
-	end
+local playerCache = {}
+local activePlayerObjects = {}
 
-	-- Notify client
-	local Events = require(game.ReplicatedStorage.Events)
-	Events.ServerCall("ReceiveAlert", player, "Instantly converted pollen!")
-end
+-- ============================================================
+-- CORE STATS: Create and sync NumberValues on the player object
+-- ============================================================
 
-function PollenTools.ConvertAmount(player, amount)
-	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return end
-
-	local pollen = stats.Pollen or 0
-	local convertAmount = math.min(pollen, amount)
-	if convertAmount > 0 then
-		stats.Honey = (stats.Honey or 0) + convertAmount
-		stats.Pollen = pollen - convertAmount
-	end
-end
-
-function PollenTools.AddPollen(player, amount)
-	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return end
-
-	stats.Pollen = (stats.Pollen or 0) + amount
-end
-
-function PollenTools.GetCapacity(player)
-	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return 0 end
-
-	local Backpacks = require(game.ReplicatedStorage.Backpacks)
-	local equippedBP = stats.EquippedBackpack or "Pouch"
-	local capacity = Backpacks.GetStat(equippedBP, "Capacity") or 0
-
-	-- Add base capacity from PollenCapacity stat modifier
-	local baseCapacity = 50 -- base pollen capacity without any container
-
-	-- If player has a backpack, use its capacity
-	if equippedBP ~= "None" then
-		return capacity
-	else
-		return baseCapacity
-	end
-end
-
-function PollenTools.SyncCoreStats(player)
-	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
-	local stats = PlayerStatManager.GetStats(player)
-	if not stats then return end
-
+local function ensureCoreStats(player)
 	local coreStats = player:FindFirstChild("CoreStats")
-	if not coreStats then return end
+	if not coreStats then
+		coreStats = Instance.new("Folder")
+		coreStats.Name = "CoreStats"
+		coreStats.Parent = player
+	end
+	local statNames = { "Honey", "Pollen", "Capacity", "TotalHoney", "DailyHoney", "Tickets" }
+	for _, name in ipairs(statNames) do
+		local val = coreStats:FindFirstChild(name)
+		if not val then
+			val = Instance.new("NumberValue")
+			val.Name = name
+			val.Parent = coreStats
+		end
+	end
+	return coreStats
+end
+
+local function syncCoreStats(player, stats)
+	if not stats then return end
+	local coreStats = ensureCoreStats(player)
 
 	local honeyVal = coreStats:FindFirstChild("Honey")
 	if honeyVal then honeyVal.Value = math.floor(stats.Honey or 0) end
@@ -77,7 +53,541 @@ function PollenTools.SyncCoreStats(player)
 	if pollenVal then pollenVal.Value = stats.Pollen or 0 end
 
 	local capacityVal = coreStats:FindFirstChild("Capacity")
-	if capacityVal then capacityVal.Value = PollenTools.GetCapacity(player) end
+	if capacityVal then
+		local equippedBP = stats.EquippedBackpack or "Pouch"
+		local cap = Backpacks.GetStat(equippedBP, "Capacity") or 200
+		capacityVal.Value = cap
+	end
+
+	local totalHoneyVal = coreStats:FindFirstChild("TotalHoney")
+	if totalHoneyVal then totalHoneyVal.Value = math.floor(stats.TotalHoney or stats.Honey or 0) end
+
+	local dailyHoneyVal = coreStats:FindFirstChild("DailyHoney")
+	if dailyHoneyVal then dailyHoneyVal.Value = math.floor(stats.DailyHoney or stats.Honey or 0) end
+
+	local ticketsVal = coreStats:FindFirstChild("Tickets")
+	if ticketsVal then ticketsVal.Value = stats.Tickets or 0 end
 end
 
-return PollenTools
+-- ============================================================
+-- GEAR EQUIPMENT
+-- ============================================================
+
+local function equipCharacter(player, character)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not humanoid then return end
+
+	-- Create OOP player object if not yet created
+	if not activePlayerObjects[player] then
+		local success, err = pcall(function()
+			activePlayerObjects[player] = PlayerTools.new(player)
+		end)
+		if not success then
+			warn("[MainServer] Failed to create PlayerTools object: " .. tostring(err))
+		end
+	end
+
+	if activePlayerObjects[player] then
+		pcall(function()
+			activePlayerObjects[player]:EquipGear()
+		end)
+	end
+
+	-- Sync CoreStats after character loads
+	local stats = playerCache[player]
+	if stats then
+		syncCoreStats(player, stats)
+	end
+end
+
+-- ============================================================
+-- PLAYER ADD / REMOVE
+-- ============================================================
+
+local function onPlayerAdded(player)
+	-- 1. Load player data from DataStore
+	local _, baseData = DataStoreModule.Load("BSS_Alpha_Save_v1", player.UserId)
+	if not baseData then
+		baseData = DataStoreModule.NewPlayerData()
+	end
+	playerCache[player] = baseData
+
+	-- 2. Sync gear stats (sets EquippedBackpack, EquippedCollector, Collectors, Backpacks arrays)
+	pcall(function() Collectors.SyncStats(baseData) end)
+	pcall(function() Backpacks.SyncStats(baseData) end)
+
+	-- 3. Register with PlayerStatManager so PlayerTools.GetStats works
+	PlayerStatManager.SetStats(player, baseData)
+
+	-- 4. Create CoreStats folder IMMEDIATELY before character loads
+	--    This eliminates infinite yield on WaitForChild("CoreStats") in MeterHUDInit
+	syncCoreStats(player, baseData)
+
+	-- 5. Handle character (may already exist in Studio play mode)
+	if player.Character then
+		task.spawn(function()
+			task.wait(0.5)
+			if player.Character then
+				equipCharacter(player, player.Character)
+			end
+		end)
+	end
+
+	player.CharacterAdded:Connect(function(character)
+		equipCharacter(player, character)
+	end)
+
+	-- 6. Trigger client stat cache reset so UI shows starter inventory
+	pcall(function()
+		local serverSystemEvent = ReplicatedStorage.Events:FindFirstChild("ServerSystemEvent")
+		if serverSystemEvent then
+			serverSystemEvent:FireClient(player, "FullCacheReset")
+		end
+	end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Handle players already in the game (Studio play mode edge case)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(function()
+		onPlayerAdded(player)
+	end)
+end
+
+-- ============================================================
+-- REMOTE FUNCTION HANDLERS
+-- ============================================================
+
+-- RetrievePlayerStats: Returns the full player data table to the client
+Events.ServerListen("RetrievePlayerStats", function(player)
+	return playerCache[player] or DataStoreModule.NewPlayerData()
+end)
+
+-- RetrievePlayerStat: Returns a specific stat field (preserves table types)
+Events.ServerListen("RetrievePlayerStat", function(player, statName)
+	local stats = playerCache[player]
+	if not stats then return nil end
+	return stats[statName]
+end)
+
+-- RetrievePlayerStatsIntervalBackups: Returns daily/epoch backup snapshots
+Events.ServerListen("RetrievePlayerStatsIntervalBackups", function(player)
+	local stats = playerCache[player]
+	local totals = stats and stats.Totals or {}
+	-- Return a Day backup whose Stats.Totals mirrors the initial state
+	return {
+		Day = {
+			Stats = {
+				Totals = {
+					Honey = totals.Honey or 0,
+					FarmedHoney = totals.FarmedHoney or 0,
+					ChallengeHoney = totals.ChallengeHoney or 0,
+					TotalBeesDiscovered = totals.TotalBeesDiscovered or 0,
+					TotalGiftedBeesDiscovered = totals.TotalGiftedBeesDiscovered or 0,
+					Pollen = { All = 0, Colors = { Red = 0, White = 0, Blue = 0 }, Zones = {}, ByTag = {}, ZoneColors = {} },
+					ChallengePollen = { All = 0, Colors = { Red = 0, White = 0, Blue = 0 }, Zones = {}, ByTag = {}, ZoneColors = {} },
+				},
+			},
+			ID = "Day",
+		},
+	}
+end)
+
+-- ============================================================
+-- TOOL COLLECT (Pollen Collection)
+-- ============================================================
+
+Events.ServerListen("ToolCollect", function(player)
+	pcall(function()
+		PollenTools.CollectPollen(player)
+	end)
+	local stats = playerCache[player]
+	if stats then
+		syncCoreStats(player, stats)
+	end
+end)
+
+-- ============================================================
+-- PROMO CODE SYSTEM
+-- ============================================================
+
+Events.ServerListen("PromoCodeEvent", function(player, code)
+	if not code or type(code) ~= "string" or #code <= 0 or #code > 100 then
+		pcall(function()
+			Events.ServerCall("ReceiveAlert", player, "Invalid code!", Color3.fromRGB(255, 100, 100))
+		end)
+		return
+	end
+
+	local stats = playerCache[player]
+	if not stats then return end
+
+	if not stats.RedeemedCodes then
+		stats.RedeemedCodes = {}
+	end
+
+	if stats.RedeemedCodes[code] then
+		pcall(function()
+			Events.ServerCall("ReceiveAlert", player, "Already redeemed!", Color3.fromRGB(255, 200, 100))
+		end)
+		return
+	end
+
+	-- Known promo codes (canonical BSS codes)
+	local codeLower = string.lower(code)
+	local knownCodes = {
+		["10mil"] = { Honey = 10000 },
+		["treats"] = { Items = { Treat = 5 } },
+		["bees"] = { Eggs = { BasicEgg = 1 } },
+		["honey"] = { Honey = 5000 },
+		["tickets"] = { Tickets = 5 },
+	}
+
+	local reward = knownCodes[codeLower]
+	if reward then
+		stats.RedeemedCodes[code] = true
+
+		if reward.Honey then
+			stats.Honey = (stats.Honey or 0) + reward.Honey
+		end
+		if reward.Tickets then
+			stats.Tickets = (stats.Tickets or 0) + reward.Tickets
+		end
+		if reward.Eggs then
+			stats.Eggs = stats.Eggs or {}
+			for eggType, amount in pairs(reward.Eggs) do
+				stats.Eggs[eggType] = (stats.Eggs[eggType] or 0) + amount
+			end
+		end
+		if reward.Items then
+			stats.Items = stats.Items or {}
+			for itemType, amount in pairs(reward.Items) do
+				stats.Items[itemType] = (stats.Items[itemType] or 0) + amount
+			end
+		end
+
+		syncCoreStats(player, stats)
+
+		pcall(function()
+			Events.ServerCall("ReceiveAlert", player, "Code redeemed successfully!", Color3.fromRGB(100, 255, 100))
+		end)
+
+		-- Trigger client stat cache reset
+		pcall(function()
+			local serverSystemEvent = ReplicatedStorage.Events:FindFirstChild("ServerSystemEvent")
+			if serverSystemEvent then
+				serverSystemEvent:FireClient(player, "FullCacheReset")
+			end
+		end)
+	else
+		pcall(function()
+			Events.ServerCall("ReceiveAlert", player, "Invalid code!", Color3.fromRGB(255, 100, 100))
+		end)
+	end
+end)
+
+-- GetPromoInfo: Returns promo countdown (-1 = no active promo)
+Events.ServerListen("GetPromoInfo", function(player)
+	return -1
+end)
+
+-- ============================================================
+-- MISSING REMOTEFUNCTION HANDLERS (prevent client InvokeServer hangs)
+-- ============================================================
+
+-- RetrievePlayerStatsSummary: Returns a summary of player stats for SystemMenu
+Events.ServerListen("RetrievePlayerStatsSummary", function(player)
+	local stats = playerCache[player]
+	if not stats then return {} end
+	return {
+		Honey = stats.Honey or 0,
+		TotalHoney = stats.TotalHoney or stats.Honey or 0,
+		Pollen = stats.Pollen or 0,
+		Capacity = Backpacks.GetStat(stats.EquippedBackpack or "Pouch", "Capacity") or 200,
+		Tickets = stats.Tickets or 0,
+		BeesDiscovered = stats.DiscoveredBees and #stats.DiscoveredBees or 0,
+		GiftedBeesDiscovered = stats.DiscGiftTypes and #stats.DiscGiftTypes or 0,
+		QuestsCompleted = 0,
+	}
+end)
+
+-- RetrieveCachedPlayerStat: Returns a specific stat (used by BeeInspector)
+Events.ServerListen("RetrieveCachedPlayerStat", function(player, statName)
+	local stats = playerCache[player]
+	if not stats then return nil end
+	return stats[statName]
+end)
+
+-- RetrieveBeeInfoSummary: Returns bee info for UI display
+Events.ServerListen("RetrieveBeeInfoSummary", function(player)
+	local stats = playerCache[player]
+	if not stats then return {} end
+	return stats.Bees or {}
+end)
+
+-- GetBondToLevel: Returns bond needed to reach a bee level
+Events.ServerListen("GetBondToLevel", function(player, level)
+	local lvl = tonumber(level) or 1
+	-- Canonical BSS bond formula: 10 * level^2
+	return lvl * lvl * 10
+end)
+
+-- ConstructHiveCellFromEgg: Hatches an egg and places a bee in the hive
+Events.ServerListen("ConstructHiveCellFromEgg", function(player, eggType, cellIndex)
+	local stats = playerCache[player]
+	if not stats then return false, "No stats loaded" end
+
+	-- Normalize egg type name (canonical BSS uses "Basic", "Silver", etc.)
+	local egg = eggType or "Basic"
+	if not stats.Eggs then stats.Eggs = {} end
+	local eggCount = stats.Eggs[egg] or stats.Eggs[egg:gsub("%s", "")] or 0
+	if eggCount <= 0 then
+		return false, "No egg of type " .. tostring(egg)
+	end
+
+	-- Remove egg
+	stats.Eggs[egg] = eggCount - 1
+	if stats.Eggs[egg] <= 0 then stats.Eggs[egg] = nil end
+
+	-- Determine bee type using EggTypes module (canonical mapping)
+	local beeType = "BasicBee"
+	local EggTypes = require(game.ReplicatedStorage.EggTypes)
+	local eggData = EggTypes:GetType(egg)
+	if eggData and eggData.BeeType then
+		beeType = eggData.BeeType
+	elseif egg and egg ~= "Basic" then
+		-- Fallback: try to derive bee type from egg name
+		beeType = egg .. "Bee"
+	end
+
+	-- Add to honeycomb
+	if not stats.Honeycomb then stats.Honeycomb = {} end
+	local beeEntry = { Type = beeType, Level = 1, ID = #stats.Honeycomb + 1 }
+	if cellIndex and type(cellIndex) == "number" then
+		stats.Honeycomb[cellIndex] = beeEntry
+	else
+		table.insert(stats.Honeycomb, beeEntry)
+	end
+
+	-- Track discovered bees
+	if not stats.DiscoveredBees then stats.DiscoveredBees = {} end
+	local found = false
+	for _, v in ipairs(stats.DiscoveredBees) do
+		if v == beeType then found = true break end
+	end
+	if not found then
+		table.insert(stats.DiscoveredBees, beeType)
+	end
+
+	-- Update totals
+	if stats.Totals then
+		stats.Totals.TotalBeesDiscovered = (stats.Totals.TotalBeesDiscovered or 0) + 1
+	end
+
+	-- Trigger client cache reset
+	pcall(function()
+		local serverSystemEvent = ReplicatedStorage.Events:FindFirstChild("ServerSystemEvent")
+		if serverSystemEvent then
+			serverSystemEvent:FireClient(player, "FullCacheReset")
+		end
+	end)
+
+	return true, beeType
+end)
+
+-- ItemPackageEvent: Handles item purchases and transactions
+Events.ServerListen("ItemPackageEvent", function(player, action, data)
+	local stats = playerCache[player]
+	if not stats then return false, "No stats loaded" end
+
+	if action == "Buy" or action == "Purchase" then
+		local cost = data and data.Cost or 0
+		if (stats.Honey or 0) >= cost then
+			stats.Honey = (stats.Honey or 0) - cost
+			local category = data.Category or data.Type
+			local itemName = data.Item or data.Name
+			if category == "Collectors" and itemName then
+				if not stats.Collectors then stats.Collectors = {} end
+				local alreadyHas = false
+				for _, c in ipairs(stats.Collectors) do
+					if c == itemName then alreadyHas = true break end
+				end
+				if not alreadyHas then
+					table.insert(stats.Collectors, itemName)
+				end
+				stats.EquippedCollector = itemName
+			elseif category == "Backpacks" and itemName then
+				if not stats.Backpacks then stats.Backpacks = {} end
+				local alreadyHas = false
+				for _, b in ipairs(stats.Backpacks) do
+					if b == itemName then alreadyHas = true break end
+				end
+				if not alreadyHas then
+					table.insert(stats.Backpacks, itemName)
+				end
+				stats.EquippedBackpack = itemName
+			elseif category == "Eggs" and itemName then
+				if not stats.Eggs then stats.Eggs = {} end
+				stats.Eggs[itemName] = (stats.Eggs[itemName] or 0) + (data.Amount or 1)
+			end
+			syncCoreStats(player, stats)
+			return true
+		end
+		return false, "Not enough honey"
+	elseif action == "Give" then
+		return true
+	elseif action == "Equip" then
+		local category = data and data.Category
+		local itemName = data and data.Item
+		if category == "Collectors" and itemName then
+			stats.EquippedCollector = itemName
+			syncCoreStats(player, stats)
+			return true
+		elseif category == "Backpacks" and itemName then
+			stats.EquippedBackpack = itemName
+			syncCoreStats(player, stats)
+			return true
+		end
+		return false, "Invalid equip request"
+	end
+	return nil
+end)
+
+-- FetchDigitalBeeModel: Returns a digital bee model (nil if not available)
+Events.ServerListen("FetchDigitalBeeModel", function(player)
+	return nil
+end)
+
+-- WindShrineDonation: Handles wind shrine item donations
+Events.ServerListen("WindShrineDonation", function(player, itemData)
+	local stats = playerCache[player]
+	if not stats then return false, "No stats loaded" end
+	-- Accept the donation; in canonical BSS this tracks contributions
+	return true
+end)
+
+-- BlenderCommand: Handles blender recipe commands
+Events.ServerListen("BlenderCommand", function(player, command, data)
+	local stats = playerCache[player]
+	if not stats then return false, "No stats loaded" end
+	if command == "Blend" or command == "Craft" then
+		-- Simple blender: consume ingredients, produce result
+		return true
+	elseif command == "Check" then
+		return true
+	end
+	return nil
+end)
+
+-- YesNoPromptPopUp: Handles yes/no prompt responses
+Events.ServerListen("YesNoPromptPopUp", function(player, ...)
+	return true
+end)
+
+-- ============================================================
+-- MISSING REMOTEEVENT HANDLERS (prevent silent failures)
+-- ============================================================
+
+-- ClaimHive: Assigns a hive slot to the player
+Events.ServerListen("ClaimHive", function(player, hiveIndex)
+	local stats = playerCache[player]
+	if not stats then return end
+	if not stats.HiveIndex then
+		stats.HiveIndex = hiveIndex or 1
+		pcall(function()
+			Events.ServerCall("ReceiveAlert", player, "Hive claimed!", Color3.fromRGB(100, 255, 100))
+		end)
+	end
+end)
+
+-- ClientSetUpListeners: Marks the client as fully loaded
+Events.ServerListen("ClientSetUpListeners", function(player)
+	local stats = playerCache[player]
+	if stats then
+		stats.ClientLoaded = true
+	end
+end)
+
+-- PlayerPurchase: Handles shop purchases (RemoteEvent version)
+Events.ServerListen("PlayerPurchase", function(player, itemData)
+	local stats = playerCache[player]
+	if not stats then return end
+	local cost = itemData and itemData.Cost or 0
+	if (stats.Honey or 0) >= cost then
+		stats.Honey = (stats.Honey or 0) - cost
+		syncCoreStats(player, stats)
+	end
+end)
+
+-- SelectNPCOption: Handles NPC dialogue option selection
+Events.ServerListen("SelectNPCOption", function(player, npcName, optionIndex)
+	local stats = playerCache[player]
+	if not stats then return end
+	if not stats.NPCs then stats.NPCs = {} end
+	if not stats.NPCs[npcName] then
+		stats.NPCs[npcName] = { Event = 1, Phase = "Start" }
+	end
+end)
+
+-- GiveQuest: Handles quest acceptance from NPCs
+Events.ServerListen("GiveQuest", function(player, npcName, questId)
+	local stats = playerCache[player]
+	if not stats then return end
+	if not stats.Quests then stats.Quests = {} end
+	if not stats.Quests.Active then stats.Quests.Active = {} end
+end)
+
+-- CompleteQuest: Handles quest completion
+Events.ServerListen("CompleteQuest", function(player, npcName, questId)
+	local stats = playerCache[player]
+	if not stats then return end
+end)
+
+-- PlayerHiveCommand: Handles hive management commands
+Events.ServerListen("PlayerHiveCommand", function(player, command, ...)
+	local stats = playerCache[player]
+	if not stats then return end
+end)
+
+-- UpdatePlayerNPCState: Updates NPC interaction state
+Events.ServerListen("UpdatePlayerNPCState", function(player, npcName, state)
+	local stats = playerCache[player]
+	if not stats then return end
+	if not stats.NPCs then stats.NPCs = {} end
+	if not stats.NPCs[npcName] then
+		stats.NPCs[npcName] = { Event = 1, Phase = "Start" }
+	end
+	if state then
+		stats.NPCs[npcName].Phase = state
+	end
+end)
+
+-- BeequipEvent: Handles bee equipment changes
+Events.ServerListen("BeequipEvent", function(player, ...)
+	local stats = playerCache[player]
+	if not stats then return end
+end)
+
+-- PlayerSettingsEvent: Handles player setting changes
+Events.ServerListen("PlayerSettingsEvent", function(player, key, value)
+	local stats = playerCache[player]
+	if not stats then return end
+	if not stats.Settings then stats.Settings = {} end
+	stats.Settings[key] = value
+end)
+
+-- ============================================================
+-- PLAYER REMOVAL
+-- ============================================================
+
+Players.PlayerRemoving:Connect(function(player)
+	playerCache[player] = nil
+	if activePlayerObjects[player] then
+		pcall(function() activePlayerObjects[player]:Destroy() end)
+		activePlayerObjects[player] = nil
+	end
+	PlayerStatManager.SetStats(player, nil)
+end)
+
+print("[SERVER BOOT] Canonical BSS Server Engine started successfully!")
