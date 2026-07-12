@@ -1,490 +1,777 @@
--- Script Path: game:GetService("ReplicatedStorage").NPCs
--- Took 0.54s to decompile.
--- Executor: Velocity (1.1.1)
+-- Script Path: game:GetService("ReplicatedStorage").Stickers
+-- Took 0.72s to decompile.
+-- Executor: Delta (1.1.727.1199)
 
 -- https://lua.expert/
-local t = {}
-local Quests = require(game.ReplicatedStorage.Quests)
-local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
-local Events = require(game.ReplicatedStorage.Events)
+local t = {
+	ID_OFFSET_VOUCHER = 5500,
+	ID_OFFSET_HIVE_SKINS = 6000,
+	ID_OFFSET_CUB_SKINS = 7000,
+	CANVAS_ID_PUBLIC = 3,
+	CANVAS_ID_INVALID = 4
+}
 local t2 = {}
-local t3 = {}
 
-function t.Make(p1) --[[ Make | Line: 14 | Upvalues: t3 (copy), Quests (copy), t2 (copy) ]]
-	local t = {
-		Model = nil,
-		Alert = nil,
-		Expiration = nil,
-		Name = p1,
-		Events = {},
-		OverrideEvents = {}
-	}
-	local v1 = nil
-
-	function t.AddEvent(p12, p2) --[[ AddEvent | Line: 27 | Upvalues: t3 (ref), Quests (ref), p1 (copy), t (copy), v1 (ref) ]]
-		if not p2.Type then
-			if p2.Quest then
-				p2.Type = "Single Quest"
-			elseif p2.QuestPool then
-				p2.Type = "Repeat Quest"
-			else
-				p2.Type = "Repeat Dialogue"
-			end
-		end
-
-		if p2.Type == "Options" then
-			for i, v in ipairs(p2.Options) do
-				if v.ActionTag then
-					t3[v.ActionTag] = {
-						Requirements = v.Requirements,
-						Action = v.Action
-					}
-				end
-			end
-		elseif p2.Type == "Dialogue" then
-			if p2.Start and p2.Start.ActionTag then
-				t3[p2.Start.ActionTag] = {
-					Requirements = p2.Start.Requirements,
-					Action = p2.Start.Action
-				}
-			end
-		elseif p2.Type == "Repeat Dialogue" and (p2.Ongoing and p2.Ongoing.ActionTag) then
-			t3[p2.Ongoing.ActionTag] = {
-				Requirements = p2.Ongoing.Requirements,
-				Action = p2.Ongoing.Action
-			}
-		end
-
-		if p2.Quest then
-			if type(p2.Quest) == "string" then
-				local v12 = Quests:Get(p2.Quest)
-
-				if not v12 then
-					error("npc " .. p1 .. " references nil quest " .. p2.Quest)
-				end
-
-				v12.NPC = t.Name
-				v1 = p2.Quest
-			else
-				local Quest2 = p2.Quest
-
-				if not Quest2.Requirements then
-					if v1 then
-						Quest2.Requirements = {
-							{
-								Type = "Completed Quests",
-								Quests = { v1 }
-							}
-						}
-					else
-						Quest2.Requirements = {}
-					end
-				end
-
-				if p2.StartReqs then
-					for i, v in ipairs(p2.StartReqs) do
-						table.insert(Quest2.Requirements, v)
-					end
-				end
-
-				Quest2.NPC = t.Name
-				Quests:Create(Quest2)
-				p2.Quest = Quest2.Name
-				v1 = Quest2.Name
-			end
-		end
-
-		table.insert(t.Events, p2)
+function t.BookUpgradeToCost(p1) --[[ BookUpgradeToCost | Line: 26 | Upvalues: t2 (copy) ]]
+	if t2[p1] then
+		return t2[p1]
 	end
-	function t.AddOverrideEvent(p12, p2) --[[ AddOverrideEvent | Line: 155 | Upvalues: t3 (ref), Quests (ref), p1 (copy), t (copy) ]]
-		if not p2.Type then
-			if p2.Quest then
-				p2.Type = "Single Quest"
-			elseif p2.QuestPool then
-				p2.Type = "Repeat Quest"
-			else
-				p2.Type = "Repeat Dialogue"
-			end
-		end
 
-		if p2.Type == "Options" then
-			for i, v in ipairs(p2.Options) do
-				if v.ActionTag then
-					t3[v.ActionTag] = {
-						Requirements = v.Requirements,
-						Action = v.Action
-					}
-				end
-			end
-		elseif p2.Type == "Dialogue" then
-			if p2.Start and p2.Start.ActionTag then
-				t3[p2.Start.ActionTag] = {
-					Requirements = p2.Start.Requirements,
-					Action = p2.Start.Action
-				}
-			end
-		elseif p2.Type == "Repeat Dialogue" and (p2.Ongoing and p2.Ongoing.ActionTag) then
-			t3[p2.Ongoing.ActionTag] = {
-				Requirements = p2.Ongoing.Requirements,
-				Action = p2.Ongoing.Action
-			}
-		end
+	local v1 = 20
+	local sum = 25
 
-		if p2.Quest then
-			if type(p2.Quest) == "string" then
-				if not Quests:Get(p2.Quest) then
-					error("npc " .. p1 .. " references nil quest " .. p2.Quest)
-				end
-			else
-				local Quest2 = p2.Quest
-
-				if not Quest2.Requirements then
-					Quest2.Requirements = {}
-				end
-
-				if p2.StartReqs then
-					for i, v in ipairs(p2.StartReqs) do
-						table.insert(Quest2.Requirements, v)
-					end
-				end
-
-				Quest2.NPC = t.Name
-
-				local _, _2 = pcall(function() --[[ Line: 244 | Upvalues: Quests (ref), Quest2 (copy) ]]
-					Quests:Create(Quest2)
-				end)
-
-				p2.Quest = Quest2.Name
-			end
-		end
-
-		table.insert(t.OverrideEvents, p2)
+	for i = 1, p1 - 1 do
+		v1 = (math.floor((v1 + sum) / 10) + 1) * 10
+		sum = sum + 10
 	end
-	t2[p1] = t
 
-	return t
+	local v2 = math.min(1000, v1)
+
+	t2[p1] = v2
+
+	return v2
 end
+function t.GetBookUpgradeCostForPlayer(p1) --[[ GetBookUpgradeCostForPlayer | Line: 64 | Upvalues: t (copy) ]]
+	local BookSize = t.GetPlayerData(p1).BookSize
 
-local v1 = t.Make("Black Bear")
-
-require(script.BlackBearInit)(v1)
-
-local v2 = t.Make("Panda Bear")
-
-require(script.PandaBearInit)(v2)
-require(script.BrownBearInit)(t.Make("Brown Bear"))
-require(script.BrownBearInitOld)(t.Make("Brown Bear Old"))
-require(script.PolarBearInit)(t.Make("Polar Bear"))
-
-local v3 = t.Make("Science Bear")
-
-require(script.ScienceBearInit)(v3)
-
-local v4 = t.Make("Mother Bear")
-
-require(script.MotherBearInit)(v4)
-
-local v5 = t.Make("Spirit Bear")
-
-require(script.SpiritBearInit)(v5)
-
-local v6 = t.Make("Onett")
-
-require(script.Onett1Init)(v6)
-require(script.DapperBearInit)(t.Make("Dapper Bear"))
-require(script.SunBearInit)(t.Make("Sun Bear"))
-require(script.GummyBearInit)(t.Make("Gummy Bear"))
-require(script.SunBear2Init)(t.Make("Sun Bear 2"))
-require(script.BeeBearInit)(t.Make("Bee Bear"))
-require(script.SunBear3Init)(t.Make("Sun Bear 3"))
-require(script.BeeBear2Init)(t.Make("Bee Bear 2"))
-require(script.SunBear4Init)(t.Make("Sun Bear 4"))
-require(script.BeeBear3Init)(t.Make("Bee Bear 3"))
-require(script.GummyBear2Init)(t.Make("Gummy Bear 2"))
-require(script.BeeBear4Init)(t.Make("Bee Bear 4"))
-require(script.BeeBear5Init)(t.Make("Bee Bear 5"))
-require(script.BeeBear6Init)(t.Make("Bee Bear 6"))
-require(script.SunBear5Init)(t.Make("Sun Bear 5"))
-require(script.BeeBear7Init)(t.Make("Bee Bear 7"))
-require(script.BeeBear2025Init)(t.Make("Bee Bear 2025"))
-require(script.BubbleBeeMan6Init)(t.Make("Bubble Bee Man 6"))
-require(script.RileyBeeInit)(t.Make("Riley Bee"))
-require(script.BuckoBeeInit)(t.Make("Bucko Bee"))
-require(script.HoneyBeeInit)(t.Make("Honey Bee"))
-require(script.StickBugInit)(t.Make("Stick Bug"))
-require(script.RoboBearInit)(t.Make("Robo Bear"))
-
-local v7 = t.Make("Ant Challenge Info")
-
-require(script.AntChallengeSignInit)(v7)
-
-local v8 = t.Make("Egg Hunt Info")
-
-require(script.EggHuntInfoInit)(v8)
-require(script.WindShrineInit)(t.Make("Wind Shrine"))
-
-local function findNpcParts(p1) --[[ findNpcParts | Line: 412 ]]
-	local v1 = game:GetService("Workspace"):WaitForChild("NPCs"):FindFirstChild(p1.Name)
-
-	if not v1 then
-		p1.Model = nil
-		p1.Alert = nil
-
-		return
+	if t.MAX_BOOK_SIZE <= BookSize then
+		return nil
 	end
 
-	p1.Model = v1
+	local v2 = math.floor((BookSize - t.START_BOOK_SIZE) / t.BOOK_EXPANSION_SIZE) + 1
 
-	if v1:FindFirstChild("Platform") then
-		p1.Alert = v1.Platform.AlertPos.AlertGui.ImageLabel
+	return t.BookUpgradeToCost(v2), v2
+end
+t.BOOK_SIZE_X = 4
+t.START_BOOK_SIZE = 16
+t.BOOK_EXPANSION_SIZE = 8
+t.MAX_BOOK_SIZE = 400
+t.MAX_INBOX_SIZE = 200
+t.INBOX_MAX_DUR = 172800
+function t.NewPlayerData() --[[ NewPlayerData | Line: 98 | Upvalues: t (copy) ]]
+	local t2 = {
+		BookSize = 16,
+		Book = {},
+		Inbox = {}
+	}
+
+	t.AssignSpreadID(t2)
+
+	return t2
+end
+function t.AssignSpreadID(p1) --[[ AssignSpreadID | Line: 114 ]]
+	local v3 = math.floor(require(game.ReplicatedStorage.CentralTime).GetMonthSinceEpoch() / 6)
+
+	if (p1.SpreadEpoch or 0) < v3 then
+		p1.SpreadEpoch = v3
+		p1.SpreadID = math.random(2000000000)
+	end
+
+	return p1.SpreadID
+end
+function t.GetPlayerSpreadID(p1) --[[ GetPlayerSpreadID | Line: 137 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+
+	if v1 then
+		return v1.SpreadID or 0
+	end
+
+	return 0
+end
+function t.GetPlayerStickerTypeSpread(p1, p2) --[[ GetPlayerStickerTypeSpread | Line: 147 | Upvalues: t (copy) ]]
+	local v1 = require(game.ReplicatedStorage.Stickers.StickerTypes).Get(p2)
+
+	if not (v1 and v1.PlayerSpread) then
+		return 1
+	end
+
+	local v2 = t.GetPlayerSpreadID(p1)
+	local PlayerSpread = v1.PlayerSpread
+	local v3 = PlayerSpread[3]
+
+	if v3 then
+		v2 = math.floor(v2 / v3)
+	end
+
+	if v2 % PlayerSpread[1] == PlayerSpread[2] then
+		return 2
+	end
+
+	return 0
+end
+function t.NewTotalsData() --[[ NewTotalsData | Line: 185 ]]
+	return {
+		AnyCreated = 0,
+		AnyReceived = 0,
+		AnyTraded = 0,
+		AddedToInbox = 0,
+		HiddenFound = {},
+		Received = {},
+		Traded = {},
+		Discarded = {},
+		PutOnBoard = {}
+	}
+end
+function t.GetPlayerData(p1) --[[ GetPlayerData | Line: 209 | Upvalues: t (copy) ]]
+	if not p1 then
+		warn("trying to get sticker data for nil pstats", debug.traceback())
+
+		return nil
+	end
+
+	local Stickers = p1.Stickers
+
+	if Stickers == nil then
+		warn("player file did not have Stickers initiated")
+
+		local v1 = t.NewPlayerData()
+
+		p1.Stickers = v1
+		Stickers = v1
+	end
+
+	return Stickers
+end
+function t.PlayerStatsToBookMap(p1) --[[ PlayerStatsToBookMap | Line: 228 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+	local StickerFile = require(game.ReplicatedStorage.Stickers.StickerFile)
+	local t2 = {}
+
+	for i, v in ipairs(v1.Book) do
+		t2[StickerFile.FromData(v).BookIndex] = v
+	end
+
+	return t2
+end
+function t.GetStickerAtBookIndex(p1, p2) --[[ GetStickerAtBookIndex | Line: 242 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+	local StickerFile = require(game.ReplicatedStorage.Stickers.StickerFile)
+
+	for i, v in ipairs(v1.Book) do
+		if StickerFile.FromData(v).BookIndex == p2 then
+			return v
+		end
+	end
+
+	return nil
+end
+function t.CountStickersOnHive(p1) --[[ CountStickersOnHive | Line: 256 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+	local StickerFile = require(game.ReplicatedStorage.Stickers.StickerFile)
+	local count = 0
+
+	for i, v in ipairs(v1.Book) do
+		local v2 = StickerFile.FromData(v)
+
+		if v2:IsPlaced() and v2:GetCosmeticType() == "Sticker" then
+			count = count + 1
+		end
+	end
+
+	return count
+end
+function t.PlayerStatsToFirstEmptyBookIndex(p1) --[[ PlayerStatsToFirstEmptyBookIndex | Line: 273 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+
+	if #v1.Book >= v1.BookSize then
+		return nil
+	end
+
+	local v2 = t.PlayerStatsToBookMap(p1)
+
+	for i = 1, v1.BookSize do
+		if v2[i] == nil then
+			return i
+		end
+	end
+
+	return nil
+end
+function t.AddStickerToPlayerBook(p1, p2, p3) --[[ AddStickerToPlayerBook | Line: 300 | Upvalues: t (copy) ]]
+	local v1
+
+	if p3 then
+		if t.GetStickerAtBookIndex(p1, p3) then
+			return false
+		end
+
+		v1 = p3
 	else
-		p1.Alert = nil
-	end
-end
+		local v2 = t.PlayerStatsToFirstEmptyBookIndex(p1)
 
-local function findAllNpcParts() --[[ findAllNpcParts | Line: 438 | Upvalues: t2 (copy), findNpcParts (copy) ]]
-	for k, v in pairs(t2) do
-		findNpcParts(v)
-	end
-end
+		if not v2 then
+			return false
+		end
 
-function t.Get(p1) --[[ Get | Line: 451 | Upvalues: t2 (copy) ]]
-	return t2[p1]
-end
-function t.GetEventPhase(p1, p2) --[[ GetEventPhase | Line: 456 ]]
-	if p2 == nil then
-		return nil, nil
+		v1 = v2
 	end
 
-	local v1 = p2.NPCs[p1]
+	local Book = t.GetPlayerData(p1).Book
 
-	if v1 == nil then
-		v1 = {
-			Event = 1,
-			Phase = "Start"
-		}
+	table.insert(Book, p2)
+	p2:RemoveInboxAddedTime()
+	p2:ClearLocationData()
+	p2.BookIndex = v1
+
+	return true
+end
+function t.AddStickerToPlayerInbox(p1, p2) --[[ AddStickerToPlayerInbox | Line: 336 | Upvalues: t (copy) ]]
+	p1.Totals.Stickers.AddedToInbox = (p1.Totals.Stickers.AddedToInbox or 0) + 1
+	p2:SetInboxAddedTime()
+
+	local Inbox = t.GetPlayerData(p1).Inbox
+
+	table.insert(Inbox, 1, p2)
+
+	while #Inbox > 200 do
+		table.remove(Inbox, #Inbox)
 	end
 
-	return v1.Event, v1.Phase
-end
-function t.ReresolveEventPhase(p1, p2) --[[ ReresolveEventPhase | Line: 471 | Upvalues: t (copy) ]]
-	local v1, v2 = t.UpdateEventPhase(p1, p2, 1, "Start", true)
+	p2:ClearLocationData()
 
-	return v1, v2
+	return true
 end
-function t.SetEventPhase(p1, p2, p3, p4) --[[ SetEventPhase | Line: 481 ]]
-	p2.NPCs[p1] = {
-		Event = p3,
-		Phase = p4
-	}
+function t.CheckPlayerHasStickerInBook(p1, p2) --[[ CheckPlayerHasStickerInBook | Line: 367 | Upvalues: t (copy) ]]
+	for i, v in ipairs(t.GetPlayerData(p1).Book) do
+		if p2:Equals(v) then
+			return true, i
+		end
+	end
+
+	return false
 end
-function t.UpdateEventPhase(p1, p2, p3, p4, p5) --[[ UpdateEventPhase | Line: 486 | Upvalues: t (copy), Quests (copy) ]]
-	local v1 = t.Get(p1).Events[p3]
+function t.SearchPlayerStatsForFile(p1, p2, p3) --[[ SearchPlayerStatsForFile | Line: 398 | Upvalues: t (copy) ]]
+	local v1, v2 = t.CheckPlayerHasStickerInBook(p1, p2)
+
+	if v1 then
+		return true, "Book", v2
+	end
+
+	local Inbox = t.GetPlayerData(p1).Inbox
+
+	for i, v in ipairs(Inbox) do
+		if p2:Equals(v) then
+			return true, "Inbox", i
+		end
+	end
+
+	return false
+end
+function t.CountStickersOfTypeInBook(p1, p2) --[[ CountStickersOfTypeInBook | Line: 429 | Upvalues: t (copy) ]]
+	local v1 = require(script.StickerTypes).NameToID(p2)
 
 	if not v1 then
-		print("no eventData for npc " .. tostring(p1) .. " event " .. tostring(p3))
-
-		return p3, "Unready"
+		return 0
 	end
 
-	local Type = v1.Type
+	local count = 0
 
-	if Type == "Single Quest" then
-		local Quest = v1.Quest
+	for i, v in ipairs(t.GetPlayerData(p1).Book) do
+		if v.TypeID == v1 then
+			count = count + 1
+		end
+	end
 
-		if Quests:FlaggedComplete(Quest, p2) then
-			return t.UpdateEventPhase(p1, p2, p3 + 1, "Start")
+	return count
+end
+function t.GetTypesInBookMap(p1) --[[ GetTypesInBookMap | Line: 444 | Upvalues: t (copy) ]]
+	local t2 = {}
+	local count = 0
+	local t3 = {}
+
+	for i, v in ipairs(t.GetPlayerData(p1).Book) do
+		local v2 = v:GetTypeName()
+
+		if not t2[v2] then
+			t2[v2] = 0
+
+			local v3 = v:GetCosmeticType()
+
+			t3[v3] = (t3[v3] or 0) + 1
+			count = count + 1
 		end
 
-		if Quests:GetActiveData(Quest, p2) == nil then
-			if Quests:CheckRequirements(Quest, p2) then
-				return p3, "Start"
+		t2[v2] = t2[v2] + 1
+	end
+
+	return t2, count, t3
+end
+function t.GetStickersOnHive(p1) --[[ GetStickersOnHive | Line: 473 | Upvalues: t (copy) ]]
+	local t2 = {}
+
+	for i, v in ipairs(t.GetPlayerData(p1).Book) do
+		if v:IsOnHive() then
+			table.insert(t2, v)
+		end
+	end
+
+	return t2
+end
+function t.GetStickersArray(p1) --[[ GetStickersArray | Line: 484 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+	local t2 = {}
+
+	for i, v in ipairs({ v1.Book, v1.Inbox }) do
+		for i2, v2 in ipairs(v) do
+			table.insert(t2, v2)
+		end
+	end
+
+	return t2
+end
+function t.PlayerHasInStack(p1, p2) --[[ PlayerHasInStack | Line: 508 ]]
+	return require(game.ReplicatedStorage.StickerStack).StickerIsInStack(p1, p2)
+end
+function t.RepairInvalidStickersInBook(p1) --[[ RepairInvalidStickersInBook | Line: 518 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+
+	if not v1 then
+		return false
+	end
+
+	local BookSize = v1.BookSize
+	local t2 = {}
+	local list = {}
+
+	local function inspectSF(p1) --[[ inspectSF | Line: 531 | Upvalues: t2 (copy), list (copy), BookSize (copy) ]]
+		local BookIndex = p1.BookIndex
+
+		if t2[BookIndex] then
+			warn("Stickers.RepairInvalidStickersInBook: there are multiple stickers in the same slot ", BookIndex)
+			table.insert(list, p1)
+
+			return
+		end
+
+		if BookIndex <= 0 or BookSize < BookIndex then
+			warn("Stickers.RepairInvalidStickersInBook: a sticker has out of bounds book index")
+			table.insert(list, p1)
+		else
+			t2[BookIndex] = p1
+		end
+	end
+
+	for i, v in ipairs(v1.Book) do
+		local BookIndex = v.BookIndex
+
+		if t2[BookIndex] then
+			warn("Stickers.RepairInvalidStickersInBook: there are multiple stickers in the same slot ", BookIndex)
+			table.insert(list, v)
+
+			continue
+		end
+
+		if BookIndex <= 0 or BookSize < BookIndex then
+			warn("Stickers.RepairInvalidStickersInBook: a sticker has out of bounds book index")
+			table.insert(list, v)
+
+			continue
+		end
+
+		t2[BookIndex] = v
+	end
+
+	if #list <= 0 then
+		return false
+	end
+
+	while #list > 0 do
+		local v2 = list[1]
+		local v3 = false
+
+		for i = 1, BookSize do
+			if not t2[i] then
+				v2.BookIndex = i
+				t2[i] = v2
+				v3 = true
+
+				break
 			end
-
-			return p3, "Unready"
 		end
 
-		if Quests:CanComplete(Quest, p2) then
-			return p3, "Finish"
+		if not v3 then
+			break
 		end
 
-		return p3, "Ongoing"
+		table.remove(list, 1)
 	end
 
-	if Type == "Repeat Quest" then
-		local Cooldown = v1.Cooldown
-		local v2, v3, _ = Quests:GetPoolState(v1.QuestPool, p2)
+	print("corrupted SFs: ", #list)
 
-		if v3 == "Unqualified" then
-			return p3, "Unready"
+	for i, v in ipairs(list) do
+		warn("Stickers.RepairInvalidStickersInBook: straggler corrupted SF")
+
+		if t.RemoveStickerFromPlayerStats(p1, v) then
+			warn("Stickers.RepairInvalidStickersInBook: adding corrupted sticker to inbox")
+			t.AddStickerToPlayerInbox(p1, v)
 		end
-
-		if v3 == "Cooldown" then
-			return p3, "Cooldown"
-		end
-
-		if v3 == "New" then
-			return p3, "Start"
-		end
-
-		if Quests:CanComplete(v2, p2) then
-			return p3, "Finish"
-		end
-
-		return p3, "Ongoing"
 	end
 
-	if Type == "Dialogue" then
-		if p4 == "Start" and not p5 then
-			return p3, "Ongoing"
-		end
-
-		return p3 + 1, "Start"
-	end
-
-	if Type == "Options" then
-		local StatTools = require(game.ReplicatedStorage.StatTools)
-
-		if v1.FinishReqs and StatTools.CheckReqs(p2, v1.FinishReqs) then
-			return t.UpdateEventPhase(p1, p2, p3 + 1, "Start")
-		end
-
-		if v1.StartReqs and not StatTools.CheckReqs(p2, v1.StartReqs) then
-			return p3, "Unready"
-		end
-
-		return p3, "Start"
-	end
-
-	if Type == "Repeat Dialogue" then
-		return p3, "Ongoing"
-	end
+	return true
 end
-function t.GetNextEventPhase(p1, p2) --[[ GetNextEventPhase | Line: 600 | Upvalues: t (copy) ]]
-	local v1, v2 = t.GetEventPhase(p1, p2)
+function t.GetFileFromPlayerStats(p1, p2) --[[ GetFileFromPlayerStats | Line: 604 | Upvalues: t (copy) ]]
+	local v1 = require(script.StickerFile).FromData(p2)
 
-	return t.UpdateEventPhase(p1, p2, v1, v2)
-end
-function t.ResolveEventPhase(p1) --[[ ResolveEventPhase | Line: 605 | Upvalues: ClientStatCache (copy), t (copy), Events (copy) ]]
-	local v1 = ClientStatCache:Get()
-	local v2, v3 = t.GetEventPhase(p1, v1)
-	local v4, v5 = t.UpdateEventPhase(p1, v1, v2, v3)
-
-	if v4 ~= v2 or v5 ~= v3 then
-		t.SetEventPhase(p1, v1, v4, v5)
-		Events.ClientCall("UpdatePlayerNPCState", p1, v4, v5)
-	end
-
-	return v4, v5
-end
-function t.ResolveOverrideEvent(p1, p2) --[[ ResolveOverrideEvent | Line: 628 | Upvalues: t (copy), ClientStatCache (copy), Quests (copy) ]]
-	local v1 = t.Get(p1)
-
-	if #v1.OverrideEvents <= 0 then
+	if not v1 then
 		return nil
 	end
 
-	local v2 = ClientStatCache:Get()
-	local StatTools = require(game.ReplicatedStorage.StatTools)
+	local v2, v3, v4 = t.SearchPlayerStatsForFile(p1, v1)
 
-	for i, v in ipairs(v1.OverrideEvents) do
-		if v ~= p2 and not StatTools.CheckReqs(v2, v.FinishReqs) and (if v.StartReqs == nil then true else StatTools.CheckReqs(v2, v.StartReqs)) then
-			if v.Type ~= "Single Quest" then
-				return v, "Start"
-			end
-
-			local Quest = v.Quest
-			local v4 = Quests:Get(Quest)
-
-			if v4 and not v4.Hidden and not Quests:FlaggedComplete(Quest, v2) then
-				if Quests:GetActiveData(Quest, v2) == nil then
-					if Quests:CheckRequirements(Quest, v2) then
-						return v, "Start"
-					end
-
-					continue
-				end
-
-				if Quests:CanComplete(Quest, v2) then
-					return v, "Finish"
-				end
-			end
-		end
+	if v2 then
+		return t.GetPlayerData(p1)[v3][v4], v3, v4
 	end
 
 	return nil
 end
-function t.GetAlertType(p1, p2) --[[ GetAlertType | Line: 732 | Upvalues: t (copy) ]]
-	local v1, v2 = t.GetNextEventPhase(p1, p2)
-	local v3 = t.Get(p1).Events[v1]
+function t._ResolveTypeID(p1) --[[ _ResolveTypeID | Line: 622 ]]
+	local v1 = nil
+	local v2 = type(p1)
 
-	if v2 == "Finish" then
-		return "Exclamation"
+	if v2 == "number" then
+		return p1
 	end
 
-	local v4, v5 = t.ResolveOverrideEvent(p1)
-
-	if v4 and v4.Type == "Single Quest" then
-		if v5 == "Start" or v5 == "Finish" then
-			return "Exclamation"
-		end
-
-		if v4.Ongoing then
-			return nil
-		end
+	if v2 == "string" then
+		return require(script.StickerTypes).NameToID(p1)
 	end
 
-	if not v3 then
-		print("there is no event for name " .. tostring(p1) .. " event " .. tostring(v1), debug.traceback())
-
-		return nil
+	if v2 == "table" then
+		return p1.ID
 	end
 
-	if v3.Type == "Single Quest" then
-		if v2 == "Start" or v2 == "Finish" then
-			return "Exclamation"
-		end
-	elseif v3.Type == "Repeat Quest" and (v2 == "Start" or v2 == "Finish") then
-		return "Exclamation"
-	end
-
-	return nil
+	error("error: Invalid sticker type", p1, debug.traceback())
 end
-function t.GetOptionActionByTag(p1) --[[ GetOptionActionByTag | Line: 782 | Upvalues: t3 (copy) ]]
-	return t3[p1]
-end
-function t.UpdateAlerts(p1) --[[ UpdateAlerts | Line: 794 | Upvalues: t2 (copy), findNpcParts (copy), ClientStatCache (copy), t (copy), Events (copy) ]]
-	for k, v in pairs(t2) do
-		findNpcParts(v)
-	end
+function t.SearchPlayerStatsForType(p1, p2, p3, p4) --[[ SearchPlayerStatsForType | Line: 641 | Upvalues: t (copy) ]]
+	local v1 = t._ResolveTypeID(p2)
+	local v2 = t.GetPlayerData(p1)
 
-	if game:GetService("Players").LocalPlayer == nil then
-		return
-	end
-
-	local v1 = ClientStatCache:Get()
-
-	for k, v in pairs(t2) do
-		if p1 then
-			local v2, _ = t.GetEventPhase(k, v1)
-			local v3, v4 = t.ReresolveEventPhase(k, v1)
-
-			if type(v3) ~= "string" and (type(v2) ~= "string" and (v2 ~= nil and (v3 ~= nil and v3 < v2))) then
-				t.SetEventPhase(k, v1, v3, v4)
-				Events.ClientCall("UpdatePlayerNPCState", k, v3, v4)
+	for i, v in ipairs(if p3 then { v2[p3] } else { v2.Book, v2.Inbox }) do
+		for i2, v4 in ipairs(v) do
+			if v4.TypeID == v1 and (not p4 or v4:IsOnHive()) then
+				return true, v4, v, i2
 			end
 		end
+	end
 
-		if v.Alert ~= nil then
-			if t.GetAlertType(k, v1) == nil then
-				v.Alert.ImageTransparency = 1
+	return false
+end
+function t.GetTakablesOfType(p1, p2, p3) --[[ GetTakablesOfType | Line: 671 | Upvalues: t (copy) ]]
+	local v1 = t._ResolveTypeID(p2)
+	local t2 = {}
+	local count = 0
+
+	for i, v in ipairs(t.GetPlayerData(p1).Book) do
+		if v.TypeID == v1 then
+			if v:IsPlaced() then
+				table.insert(t2, v)
 
 				continue
 			end
 
-			v.Alert.ImageTransparency = 0
+			count = count + 1
+			table.insert(t2, count, v)
+
+			if p3 and p3 <= count then
+				break
+			end
 		end
 	end
+
+	if not p3 then
+		return t2
+	end
+
+	if #t2 <= p3 then
+		return t2
+	end
+
+	local v3 = table.create(p3)
+
+	table.move(t2, 1, p3, 1, v3)
+
+	return v3
+end
+function t.GetStickerFromBookByIDs(p1, p2) --[[ GetStickerFromBookByIDs | Line: 723 | Upvalues: t (copy) ]]
+	for i, v in ipairs(t.GetPlayerData(p1).Book) do
+		if v[1] == p2[1] and v[2] == p2[2] then
+			return v, i
+		end
+	end
+
+	return nil
+end
+function t.ChangeStickerBookIndex(p1, p2, p3) --[[ ChangeStickerBookIndex | Line: 737 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+
+	if p3 <= 0 or v1.BookSize < p3 then
+		warn("Trying to change Sticker\'s book index to invalid index ", p3)
+
+		return false, "Invalid book index"
+	end
+
+	local v2, v3 = t.CheckPlayerHasStickerInBook(p1, p2)
+
+	if not v2 then
+		return false, "Not in book"
+	end
+
+	if v3 == p3 then
+		return false, "Already there"
+	end
+
+	local v4 = nil
+
+	for i, v in ipairs(v1.Book) do
+		if v.BookIndex == p3 then
+			v4 = v
+
+			break
+		end
+	end
+
+	if not v4 then
+		p2.BookIndex = p3
+
+		return true
+	end
+
+	v4.BookIndex = v3
+	p2.BookIndex = p3
+
+	return true
+end
+function t.GiveStickerToPlayerStats(p1, p2, p3, p4) --[[ GiveStickerToPlayerStats | Line: 779 | Upvalues: t (copy) ]]
+	local v1 = require(script.StickerFile).FromData(p2)
+	local v2, v3, v4 = t.SearchPlayerStatsForFile(p1, v1)
+
+	if v2 then
+		return false, v3, v4
+	end
+
+	local v5, v6
+
+	if p4 then
+		v5 = false
+		v6 = v1
+	else
+		v5, v6 = t.AddStickerToPlayerBook(p1, v1), v1
+	end
+
+	local v8 = nil
+
+	if v5 then
+		v8 = "Book"
+	else
+		local v9 = t.AddStickerToPlayerInbox(p1, v6)
+
+		if v9 then
+			v5 = v9
+			v8 = "Inbox"
+		else
+			v5 = v9
+		end
+	end
+
+	if not v5 then
+		return false
+	end
+
+	local v10 = tostring(v6.TypeID)
+
+	p1.Totals.Stickers.AnyReceived = (p1.Totals.Stickers.AnyReceived or 0) + 1
+	p1.Totals.Stickers.Received[v10] = (p1.Totals.Stickers.Received[v10] or 0) + 1
+
+	if p3 then
+		local ReceivedBySource = p1.Totals.Stickers.ReceivedBySource
+
+		if not ReceivedBySource then
+			ReceivedBySource = {}
+			p1.Totals.Stickers.ReceivedBySource = ReceivedBySource
+		end
+
+		if type(p3) == "string" then
+			ReceivedBySource[p3] = (ReceivedBySource[p3] or 0) + 1
+		else
+			for i, v in ipairs(p3) do
+				ReceivedBySource[v] = (ReceivedBySource[v] or 0) + 1
+			end
+		end
+	end
+
+	return true, v8
+end
+function t.RemoveStickerFromPlayerStats(p1, p2) --[[ RemoveStickerFromPlayerStats | Line: 857 | Upvalues: t (copy) ]]
+	local v1, v2, v3 = t.SearchPlayerStatsForFile(p1, p2)
+
+	if v1 then
+		table.remove(t.GetPlayerData(p1)[v2], v3)
+		p2:ClearLocationData()
+
+		return true, v2, v3
+	end
+
+	return false
+end
+function t.InitializePlayerStatClasses(p1) --[[ InitializePlayerStatClasses | Line: 876 | Upvalues: t (copy) ]]
+	local StickerFile = require(script.StickerFile)
+	local v1 = t.GetPlayerData(p1)
+
+	if not v1 then
+		warn("Cannot initialize player sticker classes, nil data", debug.traceback())
+
+		return
+	end
+
+	for i, v in ipairs(v1.Book) do
+		StickerFile.FromData(v)
+	end
+
+	for i, v in ipairs(v1.Inbox) do
+		StickerFile.FromData(v)
+	end
+end
+function t.MoveStickerFromInboxToBook(p1, p2, p3) --[[ MoveStickerFromInboxToBook | Line: 899 | Upvalues: t (copy) ]]
+	local v1 = t.GetPlayerData(p1)
+	local Inbox = v1.Inbox
+	local v2 = 0
+
+	for i, v in ipairs(Inbox) do
+		if p2:Equals(v) then
+			v2 = i
+
+			break
+		end
+	end
+
+	if v2 == 0 then
+		return false
+	end
+
+	if t.GetStickerAtBookIndex(p1, p3) then
+		return false
+	end
+
+	table.remove(Inbox, v2)
+	t.AddStickerToPlayerBook(p1, v1.Inbox[v2], p3)
+
+	return true
+end
+function t.UpdateStickerOnClient(p1) --[[ UpdateStickerOnClient | Line: 938 | Upvalues: t (copy) ]]
+	local StickerFile = require(script.StickerFile)
+
+	StickerFile.FromData(p1)
+
+	local v1 = require(game.ReplicatedStorage.ClientStatCache):Get()
+
+	if not v1 then
+		return
+	end
+
+	local v2, v3, v4 = t.GetFileFromPlayerStats(v1, p1)
+
+	if not v2 then
+		return
+	end
+
+	local v5 = t.GetPlayerData(v1)
+	local v6 = StickerFile.FromData(p1)
+	local BookIndex = v2.BookIndex
+	local BookIndex2 = v6.BookIndex
+
+	if BookIndex ~= BookIndex2 and v3 == "Inbox" then
+		table.remove(v5.Inbox, v4)
+		t.AddStickerToPlayerBook(v1, v2, BookIndex2)
+	elseif BookIndex ~= BookIndex2 then
+		t.ChangeStickerBookIndex(v1, v2, BookIndex2)
+	end
+
+	v2:SetLocationData(v6:GetLocationData())
+	require(game.ReplicatedStorage.Gui.StickerMenus.StickerBookMenu).UpdateSticker(v2)
+end
+function t.InitClientListeners() --[[ InitClientListeners | Line: 1001 | Upvalues: t (copy) ]]
+	local Events = require(game.ReplicatedStorage.Events)
+
+	Events.ClientListen("StickerPlacement", function(p1) --[[ Line: 1006 | Upvalues: t (ref) ]]
+		t.UpdateStickerOnClient(p1)
+	end)
+	Events.ClientListen("StickerPeel", function(p1) --[[ Line: 1019 | Upvalues: t (ref) ]]
+		t.UpdateStickerOnClient(p1)
+	end)
+
+	local PublicStickers = workspace:FindFirstChild("PublicStickers")
+
+	local function addPublicStickerClickDetector(p1) --[[ addPublicStickerClickDetector | Line: 1029 | Upvalues: Events (copy) ]]
+		local v1 = require(script.StickerFile).FromPart(p1)
+
+		if v1 then
+			local ClickDetector = Instance.new("ClickDetector")
+
+			ClickDetector.Parent = p1
+			ClickDetector.MaxActivationDistance = 50
+			ClickDetector.MouseClick:Connect(function() --[[ Line: 1042 | Upvalues: v1 (copy), Events (ref) ]]
+				print("calling StickerPublicClick for ", v1:ToString())
+				Events.ClientCall("StickerPublicClick", v1)
+			end)
+		else
+			warn("invalid part added to public sticker folder")
+		end
+	end
+
+	for i, v in ipairs(PublicStickers:GetChildren()) do
+		addPublicStickerClickDetector(v)
+	end
+
+	PublicStickers.ChildAdded:Connect(function(p1) --[[ Line: 1054 | Upvalues: addPublicStickerClickDetector (copy) ]]
+		print("child added to public stickers")
+
+		if p1:IsA("BasePart") then
+			addPublicStickerClickDetector(p1)
+		end
+	end)
+end
+function t.SortBook(p1) --[[ SortBook | Line: 1068 | Upvalues: t (copy) ]]
+	local Book = t.GetPlayerData(p1).Book
+
+	table.sort(Book, function(p1, p2) --[[ Line: 1075 ]]
+		local v1 = p1:GetSortID()
+		local v2 = p2:GetSortID()
+
+		if v2 < v1 then
+			return false
+		end
+
+		if v1 < v2 then
+			return true
+		end
+
+		local v3 = p1:IsPlaced()
+
+		if v3 ~= p2:IsPlaced() then
+			return v3
+		end
+
+		if p1.CreationTime == p2.CreationTime then
+			if p1.CreatorID == p2.CreatorID then
+				return p1.CreationID < p2.CreationID
+			end
+
+			return p1.CreatorID < p2.CreatorID
+		end
+
+		return p1.CreationTime < p2.CreationTime
+	end)
+
+	local v1 = false
+
+	for k, v in pairs(Book) do
+		if v.BookIndex ~= k then
+			v.BookIndex = k
+			v1 = true
+		end
+	end
+
+	return v1
 end
 
 return t
