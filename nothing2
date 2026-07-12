@@ -1,354 +1,286 @@
--- MovementSafetyNet: Ensures player can always move after loading
--- Fixes: ControlScript not finishing, stray LoadingScreenGui, movement stuck disabled
--- Key fix: Calls mc:Init() to bind the MasterControl render step if ControlScript failed
+-- Script Path: game:GetService("ReplicatedStorage").ClientStatCache
+-- Took 0.64s to decompile.
+-- Executor: Delta (1.1.727.1199)
 
--- Wrap everything in a pcall so errors don't silently kill the script
-local safetyNetOk, safetyNetErr = pcall(function()
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+-- https://lua.expert/
+local t = {}
+local Events = require(game.ReplicatedStorage.Events)
+local StatTools = require(game.ReplicatedStorage.StatTools)
+local v1 = nil
+local v2 = nil
+local v3 = nil
+local v4 = false
+local t2 = {}
 
-print("[MovementSafetyNet] Script starting...")
-
--- Wait for LocalPlayer
-local player = Players.LocalPlayer
-if not player then
-    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
-    player = Players.LocalPlayer
-end
-print("[MovementSafetyNet] LocalPlayer found")
-
--- Wait for character to load
-local character = player.Character or player.CharacterAdded:Wait()
-print("[MovementSafetyNet] Character found")
-
--- Get references
-local playerGui = player:WaitForChild("PlayerGui", 10)
-local playerScripts = player:WaitForChild("PlayerScripts", 15)
-print("[MovementSafetyNet] PlayerScripts found")
-
--- ============================================================
--- STEP 1: Ensure MasterControl render step is bound
--- This is THE critical fix - ControlScript often fails before
--- calling mc:Init(), so the render step never gets bound
--- ============================================================
-print("[MovementSafetyNet] Waiting for ControlScript...")
-local controlScript = nil
-local masterControlModule = nil
-
--- Wait for ControlScript to appear in PlayerScripts (it gets copied from StarterPlayerScripts)
-if playerScripts then
-    local waitStart = tick()
-    while (tick() - waitStart) < 10 do
-        controlScript = playerScripts:FindFirstChild("ControlScript")
-        if controlScript then
-            masterControlModule = controlScript:FindFirstChild("MasterControl")
-            if masterControlModule then break end
-        end
-        task.wait(0.5)
-    end
+local function copyTable(p1) --[[ copyTable | Line: 25 ]]
+	return { table.unpack(p1) }
 end
 
-if masterControlModule then
-    print("[MovementSafetyNet] Found ControlScript and MasterControl")
-    local ok, mc = pcall(function() return require(masterControlModule) end)
-    if ok and mc then
-        -- Wait up to 3 seconds for ControlScript to set ControlState
-        local waitStart = tick()
-        while mc.ControlState == nil and (tick() - waitStart) < 3 do
-            task.wait(0.25)
-        end
-        
-        -- STEP 1a: If ControlState is nil, set it up manually
-        if mc.ControlState == nil then
-            warn("[MovementSafetyNet] ControlState is nil - setting up manually")
-            
-            local controlState = {
-                Current = nil,
-                SwitchTo = function(self, newModule)
-                    if self.Current ~= newModule then
-                        if self.Current then
-                            pcall(function() self.Current:Disable() end)
-                        end
-                        self.Current = newModule
-                        if self.Current then
-                            pcall(function() self.Current:Enable() end)
-                        end
-                    end
-                end,
-                IsTouchJumpModuleUsed = function(_)
-                    return false
-                end
-            }
-            
-            mc.ControlState = controlState
-            
-            -- Set up TouchJumpModule
-            local touchJumpModule = masterControlModule:FindFirstChild("TouchJump")
-            if touchJumpModule then
-                pcall(function() mc.TouchJumpModule = require(touchJumpModule) end)
-            end
-            
-            -- Try to use the real KeyboardMovement module
-            local kbMovement = nil
-            pcall(function() kbMovement = require(masterControlModule:FindFirstChild("KeyboardMovement")) end)
-            
-            if kbMovement then
-                -- Create a keyboard module wrapper that ControlScript's Keyboard.Enable would create
-                local keyboardModule = {
-                    LocalPlayerChangedCon = nil,
-                    GameSettingsChangedCon = nil
-                }
-                function keyboardModule:Enable()
-                    pcall(function() kbMovement:Enable() end)
-                end
-                function keyboardModule:Disable()
-                    pcall(function() kbMovement:Disable() end)
-                end
-                function keyboardModule:DisconnectEvents()
-                    if self.LocalPlayerChangedCon then
-                        pcall(function() self.LocalPlayerChangedCon:disconnect() end)
-                        self.LocalPlayerChangedCon = nil
-                    end
-                    if self.GameSettingsChangedCon then
-                        pcall(function() self.GameSettingsChangedCon:disconnect() end)
-                        self.GameSettingsChangedCon = nil
-                    end
-                end
-                function keyboardModule:RefreshControlStyle()
-                    self:Disable()
-                    self:Enable()
-                end
-                controlState:SwitchTo(keyboardModule)
-            else
-                warn("[MovementSafetyNet] KeyboardMovement module failed to load - using direct input fallback")
-                -- Direct keyboard input fallback - bypasses the broken module system entirely
-                local UIS = game:GetService("UserInputService")
-                local moveVector = Vector3.new(0, 0, 0)
-                
-                local directKeyboard = {
-                    moveDir = Vector3.new(0, 0, 0)
-                }
-                
-                function directKeyboard:Enable()
-                    self._inputConn = UIS.InputBegan:Connect(function(input, processed)
-                        if processed then return end
-                        if input.KeyCode == Enum.KeyCode.W then
-                            self.moveDir = self.moveDir + Vector3.new(0, 0, -1)
-                        elseif input.KeyCode == Enum.KeyCode.S then
-                            self.moveDir = self.moveDir + Vector3.new(0, 0, 1)
-                        elseif input.KeyCode == Enum.KeyCode.A then
-                            self.moveDir = self.moveDir + Vector3.new(-1, 0, 0)
-                        elseif input.KeyCode == Enum.KeyCode.D then
-                            self.moveDir = self.moveDir + Vector3.new(1, 0, 0)
-                        elseif input.KeyCode == Enum.KeyCode.Space then
-                            local char = player.Character
-                            local hum = char and char:FindFirstChildOfClass("Humanoid")
-                            if hum then hum.Jump = true end
-                        end
-                    end)
-                    self._inputEndConn = UIS.InputEnded:Connect(function(input, processed)
-                        if input.KeyCode == Enum.KeyCode.W then
-                            self.moveDir = self.moveDir - Vector3.new(0, 0, -1)
-                        elseif input.KeyCode == Enum.KeyCode.S then
-                            self.moveDir = self.moveDir - Vector3.new(0, 0, 1)
-                        elseif input.KeyCode == Enum.KeyCode.A then
-                            self.moveDir = self.moveDir - Vector3.new(-1, 0, 0)
-                        elseif input.KeyCode == Enum.KeyCode.D then
-                            self.moveDir = self.moveDir - Vector3.new(1, 0, 0)
-                        end
-                    end)
-                    self._renderConn = RunService.RenderStepped:Connect(function()
-                        mc:AddToPlayerMovement(-mc:GetMoveVector())
-                        mc:AddToPlayerMovement(self.moveDir)
-                    end)
-                end
-                function directKeyboard:Disable()
-                    if self._inputConn then self._inputConn:Disconnect() self._inputConn = nil end
-                    if self._inputEndConn then self._inputEndConn:Disconnect() self._inputEndConn = nil end
-                    if self._renderConn then self._renderConn:Disconnect() self._renderConn = nil end
-                end
-                function directKeyboard:DisconnectEvents() end
-                function directKeyboard:RefreshControlStyle() end
-                
-                controlState:SwitchTo(directKeyboard)
-            end
-            
-            print("[MovementSafetyNet] ControlState manually set up")
-        else
-            print("[MovementSafetyNet] ControlState already set by ControlScript")
-            
-            -- STEP 1b: Even if ControlState is set, check if Current is nil
-            -- This happens if ControlScript set ControlState but crashed before SwitchTo
-            if mc.ControlState.Current == nil then
-                warn("[MovementSafetyNet] ControlState.Current is nil - calling SwitchTo")
-                local kbMovement = nil
-                pcall(function() kbMovement = require(masterControlModule:FindFirstChild("KeyboardMovement")) end)
-                if kbMovement then
-                    local keyboardModule = {
-                        LocalPlayerChangedCon = nil,
-                        GameSettingsChangedCon = nil
-                    }
-                    function keyboardModule:Enable()
-                        pcall(function() kbMovement:Enable() end)
-                    end
-                    function keyboardModule:Disable()
-                        pcall(function() kbMovement:Disable() end)
-                    end
-                    function keyboardModule:DisconnectEvents()
-                        if self.LocalPlayerChangedCon then
-                            pcall(function() self.LocalPlayerChangedCon:disconnect() end)
-                            self.LocalPlayerChangedCon = nil
-                        end
-                        if self.GameSettingsChangedCon then
-                            pcall(function() self.GameSettingsChangedCon:disconnect() end)
-                            self.GameSettingsChangedCon = nil
-                        end
-                    end
-                    function keyboardModule:RefreshControlStyle()
-                        self:Disable()
-                        self:Enable()
-                    end
-                    mc.ControlState:SwitchTo(keyboardModule)
-                end
-            end
-        end
-        
-        -- STEP 1c: CRITICAL - Ensure the render step is bound
-        -- ControlScript often fails before calling mc:Init(), which means
-        -- the MasterControlStep render step is never bound and movement
-        -- never works even if everything else is set up correctly.
-        -- We unbind first to avoid double-binding, then rebind.
-        pcall(function() RunService:UnbindFromRenderStep("MasterControlStep") end)
-        pcall(function() mc:Init() end)
-        print("[MovementSafetyNet] MasterControl render step bound")
-        
-        -- STEP 2: Force-enable movement on MasterControl
-        pcall(function() mc:Enable() end)
-        
-        -- STEP 3: Reset CameraTools movement counter
-        -- If DisablePlayerMovement was called more times than EnablePlayerMovement,
-        -- the counter stays positive and movement stays disabled.
-        -- We call EnablePlayerMovement enough times to reset the counter.
-        pcall(function()
-            local cameraTools = game.ReplicatedStorage:FindFirstChild("CameraTools")
-            if cameraTools then
-                local ct = require(cameraTools)
-                for i = 1, 10 do
-                    ct.EnablePlayerMovement()
-                end
-            end
-        end)
-        
-        print("[MovementSafetyNet] Movement fully enabled")
-    else
-        warn("[MovementSafetyNet] Failed to require MasterControl: " .. tostring(mc))
-    end
-else
-    warn("[MovementSafetyNet] MasterControl module not found")
+local function v5(p1, p2, p3) --[[ equals | Line: 29 | Upvalues: v5 (copy) ]]
+	if p1 == p2 then
+		return true
+	end
+
+	local v1 = type(p1)
+
+	if v1 ~= type(p2) then
+		return false
+	end
+
+	if v1 ~= "table" then
+		return false
+	end
+
+	if not p3 then
+		local v2 = getmetatable(p1)
+
+		if v2 and v2.__eq then
+			return p1 == p2
+		end
+	end
+
+	local t = {}
+
+	for k, v in pairs(p1) do
+		local v4 = p2[k]
+
+		if v4 == nil or v5(v, v4, p3) == false then
+			return false
+		end
+
+		t[k] = true
+	end
+
+	for k, v in pairs(p2) do
+		if not t[k] then
+			return false
+		end
+	end
+
+	return true
 end
 
--- ============================================================
--- STEP 4: Clean up stray LoadingScreenGui instances
--- These can block input and keep the loading screen visible
--- ============================================================
-local function cleanupLoadingScreen()
-    -- Remove from PlayerGui
-    if playerGui then
-        local lsg = playerGui:FindFirstChild("LoadingScreenGui")
-        if lsg then
-            lsg.Enabled = false
-            task.wait(0.3)
-            if lsg and lsg.Parent then
-                lsg:Destroy()
-            end
-            print("[MovementSafetyNet] Removed LoadingScreenGui from PlayerGui")
-        end
-    end
-    
-    -- Remove from PlayerScripts (this was the main culprit!)
-    if playerScripts then
-        local lsg2 = playerScripts:FindFirstChild("LoadingScreenGui")
-        if lsg2 then
-            lsg2:Destroy()
-            print("[MovementSafetyNet] Removed LoadingScreenGui from PlayerScripts")
-        end
-    end
-    
-    -- Also remove from ReplicatedFirst if it somehow got parented there
-    local rf = game.ReplicatedFirst:FindFirstChild("LoadingScreenGui")
-    if rf then
-        -- Don't destroy the template, just make sure it's not blocking
-        rf.Enabled = false
-    end
+function t.Update(p1, p2) --[[ Update | Line: 62 | Upvalues: v1 (ref), v4 (ref), Events (copy), t (copy), v2 (ref), StatTools (copy) ]]
+	if v1 ~= nil and p2 ~= nil then
+		local v12 = Events.ClientCall("RetrievePlayerStat", p2)
+
+		t:Set(p2, v12)
+
+		return v12
+	end
+
+	if v4 then
+		while v4 do
+			task.wait()
+		end
+
+		return v1
+	end
+
+	v4 = true
+	v1 = Events.ClientCall("RetrievePlayerStats")
+
+	if v1 then
+		v1.ServerSide = nil
+		t:FullReset(v1)
+	end
+
+	v4 = false
+	v2 = tick()
+
+	if p2 then
+		return StatTools.Get(v1, p2)
+	end
+
+	return v1
+end
+function t.UpdateIfOlderThan(p1, p2) --[[ UpdateIfOlderThan | Line: 102 | Upvalues: v2 (ref), t (copy), v1 (ref) ]]
+	if v2 == nil then
+		return t:Update()
+	end
+
+	if p2 <= tick() - v2 then
+		return t:Update()
+	end
+
+	return v1
+end
+function t.SpawnBufferedUpdate(p1, p2) --[[ SpawnBufferedUpdate | Line: 117 | Upvalues: v2 (ref), t (copy) ]]
+	if p2 == nil then
+		p2 = 60
+	end
+
+	local v1 = p2 - 0.1
+
+	task.spawn(function() --[[ Line: 123 | Upvalues: v2 (ref), t (ref), v1 (copy), p2 (ref) ]]
+		task.wait()
+
+		if v2 == nil then
+			t:Update()
+		end
+
+		while true do
+			local v12
+
+			while true do
+				v12 = tick() - v2
+
+				if not (v1 <= v12) then
+					break
+				end
+
+				print("updating stat cache " .. tick())
+				t:Update()
+				task.wait(p2)
+			end
+
+			task.wait(p2 - v12)
+		end
+	end)
+end
+function t.Get(p1, p2) --[[ Get | Line: 147 | Upvalues: v1 (ref), t (copy), StatTools (copy) ]]
+	if v1 == nil then
+		t:Update(nil)
+	end
+
+	if p2 == nil then
+		return v1
+	end
+
+	return StatTools.Get(v1, p2)
+end
+function t.WaitUntilLoad() --[[ WaitUntilLoad | Line: 179 | Upvalues: t (copy) ]]
+	local v1 = t:Get()
+
+	while v1 == nil do
+		task.wait()
+		v1 = t:Get()
+	end
+
+	return v1
+end
+function t.YieldUntilLoaded(p1) --[[ YieldUntilLoaded | Line: 191 ]] end
+function t.Set(p1, p2, p3) --[[ Set | Line: 199 | Upvalues: v1 (ref) ]]
+	if p2 == nil then
+		v1 = p3
+
+		return
+	end
+
+	if type(p2) == "string" then
+		if v1 ~= nil then
+			v1[p2] = p3
+		end
+	else
+		local v12 = v1
+		local count = 1
+
+		while count < #p2 do
+			local v3 = v12[p2[count]]
+
+			if v3 == nil then
+				v3 = {}
+				v12[p2[count]] = v3
+			end
+
+			count, v12 = count + 1, v3
+		end
+
+		v12[p2[#p2]] = p3
+	end
+end
+function t.Encode(p1, p2) --[[ Encode | Line: 233 | Upvalues: v1 (ref) ]]
+	if not p2 then
+		p2 = v1
+	end
+
+	if p2 then
+		return game:GetService("HttpService"):JSONEncode(p2)
+	end
+
+	return ""
+end
+function t.Print(p1) --[[ Print | Line: 240 | Upvalues: t (copy) ]]
+	print(t:Encode())
+end
+function t.OnFullReset(p1, p2) --[[ OnFullReset | Line: 245 | Upvalues: t2 (copy) ]]
+	table.insert(t2, p2)
+end
+function t.OnRefresh(p1, p2) --[[ OnRefresh | Line: 249 | Upvalues: t2 (copy) ]]
+	table.insert(t2, p2)
+end
+function t.FullReset(p1, p2) --[[ FullReset | Line: 253 | Upvalues: v1 (ref), t (copy), t2 (copy) ]]
+	if p2 then
+		v1 = p2
+	else
+		t:Update(nil)
+	end
+
+	for i, v in ipairs(t2) do
+		v(v1)
+	end
+end
+function t.DoPostRefreshCalls() --[[ DoPostRefreshCalls | Line: 270 | Upvalues: v1 (ref), t2 (copy) ]]
+	if not v1 then
+		return
+	end
+
+	for i, v in ipairs(t2) do
+		v(v1)
+	end
+end
+function t.Validate(p1) --[[ Validate | Line: 281 ]] end
+
+local function followTotalsPath(p1, p2) --[[ followTotalsPath | Line: 313 ]]
+	if type(p2) == "string" then
+		p2 = { p2 }
+	end
+
+	local count, v1, v2 = 1, #p2, p1
+
+	while count < v1 do
+		v2 = v2[p2[count]]
+
+		if v2 == nil then
+			return 0
+		end
+
+		count = count + 1
+	end
+
+	return v2[p2[v1]] or 0
 end
 
--- Clean up immediately and also after delays
-task.spawn(cleanupLoadingScreen)
-task.spawn(function()
-    task.wait(3)
-    cleanupLoadingScreen()
-end)
-task.spawn(function()
-    task.wait(8)
-    cleanupLoadingScreen()
-end)
+function t.GetIntervalBackups() --[[ GetIntervalBackups | Line: 336 | Upvalues: v3 (ref), Events (copy) ]]
+	if not v3 then
+		Events.ClientListen("EpochIntervalBackupUpdate", function(p1) --[[ Line: 343 | Upvalues: v3 (ref) ]]
+			print("Client has received epoch interval backups")
+			v3 = p1
+		end)
+		v3 = Events.ClientCall("RetrievePlayerStatsIntervalBackups")
+	end
 
--- Watch for LoadingScreenGui being re-added
-if playerGui then
-    playerGui.ChildAdded:Connect(function(child)
-        if child.Name == "LoadingScreenGui" then
-            task.wait(2) -- Give the normal flow a chance to hide it
-            if child and child.Parent and child.Enabled then
-                child.Enabled = false
-                task.wait(0.3)
-                if child and child.Parent then
-                    child:Destroy()
-                end
-                warn("[MovementSafetyNet] Force-removed re-added LoadingScreenGui")
-            end
-        end
-    end)
+	return v3
+end
+function t.ReloadIntervalBackups() --[[ ReloadIntervalBackups | Line: 355 | Upvalues: v3 (ref), Events (copy) ]]
+	v3 = Events.ClientCall("RetrievePlayerStatsIntervalBackups")
+end
+function t.GetIntervalBackup(p1) --[[ GetIntervalBackup | Line: 360 | Upvalues: t (copy) ]]
+	local v1 = t.GetIntervalBackups()[p1]
+
+	if v1 then
+		return v1.Stats, v1.ID
+	end
+
+	warn("No interval backup for epoch interval " .. tostring(p1), debug.traceback())
+
+	return nil
+end
+function t.GetDailyTotal(p1, p2) --[[ GetDailyTotal | Line: 372 | Upvalues: t (copy), followTotalsPath (copy) ]]
+	local v1 = t:Get()
+	local v2 = followTotalsPath(t.GetIntervalBackup("Day").Totals, p2)
+
+	return followTotalsPath(v1.Totals, p2) - v2
 end
 
--- Also watch PlayerScripts for LoadingScreenGui
-if playerScripts then
-    playerScripts.ChildAdded:Connect(function(child)
-        if child.Name == "LoadingScreenGui" then
-            child:Destroy()
-            warn("[MovementSafetyNet] Destroyed LoadingScreenGui added to PlayerScripts")
-        end
-    end)
-end
-
-print("[MovementSafetyNet] Safety net initialized")
-
-end) -- end of pcall wrapper
-
-if not safetyNetOk then
-    warn("[MovementSafetyNet] FATAL ERROR: " .. tostring(safetyNetErr))
-    -- Last resort: try to enable movement directly
-    pcall(function()
-        local Players2 = game:GetService("Players")
-        local player2 = Players2.LocalPlayer
-        if player2 and player2.Character then
-            local hum = player2.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.WalkSpeed = 16
-                hum.JumpPower = 50
-            end
-        end
-        -- Destroy any loading screen
-        if player2 then
-            local pg = player2:FindFirstChild("PlayerGui")
-            if pg then
-                local lsg = pg:FindFirstChild("LoadingScreenGui")
-                if lsg then lsg:Destroy() end
-            end
-            local ps = player2:FindFirstChild("PlayerScripts")
-            if ps then
-                local lsg2 = ps:FindFirstChild("LoadingScreenGui")
-                if lsg2 then lsg2:Destroy() end
-            end
-        end
-    end)
-end
+return t
