@@ -1,0 +1,83 @@
+-- PollenTools: Server-side pollen management utilities
+-- Handles pollen conversion, collection, and capacity
+
+local PollenTools = {}
+
+function PollenTools.InstantConvert(player)
+	-- Instantly convert all pollen in the player's bag to honey
+	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return end
+
+	-- Add pollen as honey
+	local pollen = stats.Pollen or 0
+	if pollen > 0 then
+		stats.Honey = (stats.Honey or 0) + pollen
+		stats.Pollen = 0
+	end
+
+	-- Notify client
+	local Events = require(game.ReplicatedStorage.Events)
+	Events.ServerCall("ReceiveAlert", player, "Instantly converted pollen!")
+end
+
+function PollenTools.ConvertAmount(player, amount)
+	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return end
+
+	local pollen = stats.Pollen or 0
+	local convertAmount = math.min(pollen, amount)
+	if convertAmount > 0 then
+		stats.Honey = (stats.Honey or 0) + convertAmount
+		stats.Pollen = pollen - convertAmount
+	end
+end
+
+function PollenTools.AddPollen(player, amount)
+	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return end
+
+	stats.Pollen = (stats.Pollen or 0) + amount
+end
+
+function PollenTools.GetCapacity(player)
+	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return 0 end
+
+	local Backpacks = require(game.ReplicatedStorage.Backpacks)
+	local equippedBP = stats.EquippedBackpack or "Pouch"
+	local capacity = Backpacks.GetStat(equippedBP, "Capacity") or 0
+
+	-- Add base capacity from PollenCapacity stat modifier
+	local baseCapacity = 50 -- base pollen capacity without any container
+
+	-- If player has a backpack, use its capacity
+	if equippedBP ~= "None" then
+		return capacity
+	else
+		return baseCapacity
+	end
+end
+
+function PollenTools.SyncCoreStats(player)
+	local PlayerStatManager = require(game.ServerStorage.PlayerStatManager)
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return end
+
+	local coreStats = player:FindFirstChild("CoreStats")
+	if not coreStats then return end
+
+	local honeyVal = coreStats:FindFirstChild("Honey")
+	if honeyVal then honeyVal.Value = math.floor(stats.Honey or 0) end
+
+	local pollenVal = coreStats:FindFirstChild("Pollen")
+	if pollenVal then pollenVal.Value = stats.Pollen or 0 end
+
+	local capacityVal = coreStats:FindFirstChild("Capacity")
+	if capacityVal then capacityVal.Value = PollenTools.GetCapacity(player) end
+end
+
+return PollenTools
