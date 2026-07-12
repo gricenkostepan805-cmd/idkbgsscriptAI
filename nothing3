@@ -1,0 +1,20 @@
+local HoneycombManager = {}
+
+function HoneycombManager.GetHiveSlot(player, slotIndex)
+	if not player then return nil end
+	print("[HoneycombManager] GetHiveSlot for " .. player.Name)
+	return nil
+end
+
+function HoneycombManager.SetHiveSlot(player, slotIndex, beeData)
+	if not player then return false end
+	print("[HoneycombManager] SetHiveSlot for " .. player.Name)
+	return true
+end
+
+function HoneycombManager.GetHiveCount(player)
+	if not player then return 0 end
+	return 5 -- Default hive count
+end
+
+return HoneycombManager
