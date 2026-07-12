@@ -1,777 +1,337 @@
--- Script Path: game:GetService("ReplicatedStorage").Stickers
--- Took 0.72s to decompile.
--- Executor: Delta (1.1.727.1199)
+-- Script Path: game:GetService("ReplicatedStorage").Gui.BeeMenu
+-- Took 0.17s to decompile.
+-- Executor: Velocity (1.1.1)
 
 -- https://lua.expert/
-local t = {
-	ID_OFFSET_VOUCHER = 5500,
-	ID_OFFSET_HIVE_SKINS = 6000,
-	ID_OFFSET_CUB_SKINS = 7000,
-	CANVAS_ID_PUBLIC = 3,
-	CANVAS_ID_INVALID = 4
-}
+local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
+local Menus = require(game.ReplicatedStorage.Menus)
+local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
+local HoneycombFileTools = require(game.ReplicatedStorage.HoneycombFileTools)
+local ScreenInfo = require(game.ReplicatedStorage.ScreenInfo)
+local v1 = script:WaitForChild("Color").Value
+local v2 = v1:lerp(Color3.fromRGB(255, 255, 255), 0.25)
+local BeeTypeInfoBox = require(game.ReplicatedStorage.Gui.BeeTypeInfoBox)
+local v3 = Color3.fromRGB(27, 42, 53)
+local t = {}
 local t2 = {}
+local t3 = {}
 
-function t.BookUpgradeToCost(p1) --[[ BookUpgradeToCost | Line: 26 | Upvalues: t2 (copy) ]]
-	if t2[p1] then
-		return t2[p1]
-	end
-
-	local v1 = 20
-	local sum = 25
-
-	for i = 1, p1 - 1 do
-		v1 = (math.floor((v1 + sum) / 10) + 1) * 10
-		sum = sum + 10
-	end
-
-	local v2 = math.min(1000, v1)
-
-	t2[p1] = v2
-
-	return v2
+for i, v in ipairs(BeeTypes.GetColorNames()) do
+	t[v] = BeeTypes.ColorNameToColor3(v):lerp(Color3.new(0/255, 0/255, 0/255), 0.15)
+	t2[v] = t[v]
 end
-function t.GetBookUpgradeCostForPlayer(p1) --[[ GetBookUpgradeCostForPlayer | Line: 64 | Upvalues: t (copy) ]]
-	local BookSize = t.GetPlayerData(p1).BookSize
 
-	if t.MAX_BOOK_SIZE <= BookSize then
-		return nil
-	end
+local function makeProtoBeeTypeRow() --[[ makeProtoBeeTypeRow | Line: 38 | Upvalues: BeeTypes (copy), v2 (copy), v3 (copy) ]]
+	local v1 = BeeTypes:GetType("Basic")
+	local ImageButton = Instance.new("ImageButton")
 
-	local v2 = math.floor((BookSize - t.START_BOOK_SIZE) / t.BOOK_EXPANSION_SIZE) + 1
+	ImageButton.BackgroundColor3 = v2
+	ImageButton.BorderSizePixel = 0
+	ImageButton.ImageTransparency = 1
+	ImageButton.AutoButtonColor = true
 
-	return t.BookUpgradeToCost(v2), v2
+	local TextBackground = Instance.new("Frame")
+
+	TextBackground.Name = "TextBackground"
+	TextBackground.BorderSizePixel = 0
+	TextBackground.BackgroundTransparency = 0.3
+	TextBackground.BackgroundColor3 = Color3.new(255/255, 255/255, 255/255)
+	TextBackground.Parent = ImageButton
+	TextBackground.Size = UDim2.new(0.675, 0, 1, 0)
+	TextBackground.Position = UDim2.new(0.32499999999999996, 0, 0, 0)
+	TextBackground.Selectable = false
+
+	local StarIcon = Instance.new("ImageLabel")
+
+	StarIcon.BackgroundTransparency = 1
+	StarIcon.ImageColor3 = Color3.fromRGB(27, 42, 53)
+	StarIcon.Image = script.StarIcon.Texture
+	StarIcon.ImageTransparency = 0.5
+	StarIcon.Name = "StarIcon"
+	StarIcon.Size = UDim2.new(0.1, 0, 0.25, 0)
+	StarIcon.Position = UDim2.new(0.875, 0, 0.05, 0)
+	StarIcon.Parent = ImageButton
+	StarIcon.Selectable = false
+
+	local TypeName = Instance.new("TextLabel")
+
+	TypeName.Name = "TypeName"
+	TypeName.Font = "Highway"
+	TypeName.BorderSizePixel = 0
+	TypeName.Parent = ImageButton
+	TypeName.BackgroundColor3 = Color3.new(255, 255, 255)
+	TypeName.BackgroundTransparency = 1
+	TypeName.Text = "Basic Bee"
+	TypeName.TextWrapped = true
+	TypeName.TextColor3 = v3
+	TypeName.Size = UDim2.new(0.625, 0, 0.33999999999999997, 0)
+	TypeName.Position = UDim2.new(0.35, 0, 0, 0)
+	TypeName.TextSize = 24
+	TypeName.Selectable = false
+
+	local Description = Instance.new("TextLabel")
+
+	Description.Name = "Description"
+	Description.Font = "Highway"
+	Description.BorderSizePixel = 0
+	Description.Parent = ImageButton
+	Description.BackgroundColor3 = Color3.new(255, 255, 255)
+	Description.BackgroundTransparency = 1
+	Description.Text = v1.Description
+	Description.TextWrapped = true
+	Description.TextYAlignment = "Center"
+	Description.Size = UDim2.new(0.625, 0, 0.6200000000000001, 0)
+	Description.Position = UDim2.new(0.35, 0, 0.33999999999999997, 0)
+	Description.TextSize = 17
+	Description.Selectable = false
+
+	local Icon = Instance.new("ImageLabel")
+
+	Icon.Name = "Icon"
+	Icon.Parent = ImageButton
+	Icon.BackgroundTransparency = 0
+	Icon.Position = UDim2.new(0.028124999999999997, 0, 0.125, 0)
+	Icon.Size = UDim2.new(0, 80, 0, 80)
+	Icon.ImageTransparency = 0
+	Icon.BorderSizePixel = 2
+	Icon.Selectable = false
+
+	local Count = Instance.new("TextLabel")
+
+	Count.Name = "Count"
+	Count.Font = "SourceSansBold"
+	Count.BorderSizePixel = 0
+	Count.Parent = Icon
+	Count.BackgroundColor3 = Color3.new(255, 255, 255)
+	Count.BackgroundTransparency = 1
+	Count.Text = "x5"
+	Count.TextStrokeTransparency = 0
+	Count.TextColor3 = Color3.new(245, 245, 245)
+	Count.TextStrokeColor3 = v3
+	Count.TextSize = 26
+	Count.Size = UDim2.new(0.7, 0, 0.55, 0)
+	Count.Position = UDim2.new(0.55, 0, 0.875, 0)
+	Count.Selectable = false
+
+	return ImageButton
 end
-t.BOOK_SIZE_X = 4
-t.START_BOOK_SIZE = 16
-t.BOOK_EXPANSION_SIZE = 8
-t.MAX_BOOK_SIZE = 400
-t.MAX_INBOX_SIZE = 200
-t.INBOX_MAX_DUR = 172800
-function t.NewPlayerData() --[[ NewPlayerData | Line: 98 | Upvalues: t (copy) ]]
-	local t2 = {
-		BookSize = 16,
-		Book = {},
-		Inbox = {}
-	}
 
-	t.AssignSpreadID(t2)
+local v4 = nil
 
-	return t2
-end
-function t.AssignSpreadID(p1) --[[ AssignSpreadID | Line: 114 ]]
-	local v3 = math.floor(require(game.ReplicatedStorage.CentralTime).GetMonthSinceEpoch() / 6)
-
-	if (p1.SpreadEpoch or 0) < v3 then
-		p1.SpreadEpoch = v3
-		p1.SpreadID = math.random(2000000000)
+local function makeBeeTypeRow(p1, p2) --[[ makeBeeTypeRow | Line: 165 | Upvalues: v4 (ref), makeProtoBeeTypeRow (copy), ScreenInfo (copy), BeeTypes (copy), v3 (copy), BeeTypeInfoBox (copy), ClientStatCache (copy), HoneycombFileTools (copy), t (copy), t2 (copy) ]]
+	if not v4 then
+		v4 = makeProtoBeeTypeRow(p2)
+		ScreenInfo.ResizeGui(v4)
 	end
 
-	return p1.SpreadID
-end
-function t.GetPlayerSpreadID(p1) --[[ GetPlayerSpreadID | Line: 137 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
+	local v1 = BeeTypes:GetType(p1)
+	local v2 = v4:Clone()
 
-	if v1 then
-		return v1.SpreadID or 0
+	v2.Size = p2.VisibleRowSize()
+	v2.TextBackground.BackgroundColor3 = v1.ColorType3:lerp(Color3.new(255/255, 255/255, 255/255), 0.25)
+	v2.Icon.Image = v1.FaceOutline
+	v2.Icon.ImageColor3 = v1.FaceColor
+	v2.Icon.BackgroundColor3 = v1.BodyColor
+
+	local TypeName = v2:FindFirstChild("TypeName")
+
+	TypeName.Text = p1 .. " Bee"
+
+	local v32 = v3
+
+	if v1.Rarity ~= "Common" then
+		v32 = v1.RarityColor3
+		TypeName.TextStrokeColor3 = v3
 	end
 
-	return 0
-end
-function t.GetPlayerStickerTypeSpread(p1, p2) --[[ GetPlayerStickerTypeSpread | Line: 147 | Upvalues: t (copy) ]]
-	local v1 = require(game.ReplicatedStorage.Stickers.StickerTypes).Get(p2)
+	local v42 = false
 
-	if not (v1 and v1.PlayerSpread) then
-		return 1
-	end
-
-	local v2 = t.GetPlayerSpreadID(p1)
-	local PlayerSpread = v1.PlayerSpread
-	local v3 = PlayerSpread[3]
-
-	if v3 then
-		v2 = math.floor(v2 / v3)
-	end
-
-	if v2 % PlayerSpread[1] == PlayerSpread[2] then
-		return 2
-	end
-
-	return 0
-end
-function t.NewTotalsData() --[[ NewTotalsData | Line: 185 ]]
-	return {
-		AnyCreated = 0,
-		AnyReceived = 0,
-		AnyTraded = 0,
-		AddedToInbox = 0,
-		HiddenFound = {},
-		Received = {},
-		Traded = {},
-		Discarded = {},
-		PutOnBoard = {}
-	}
-end
-function t.GetPlayerData(p1) --[[ GetPlayerData | Line: 209 | Upvalues: t (copy) ]]
-	if not p1 then
-		warn("trying to get sticker data for nil pstats", debug.traceback())
-
-		return nil
-	end
-
-	local Stickers = p1.Stickers
-
-	if Stickers == nil then
-		warn("player file did not have Stickers initiated")
-
-		local v1 = t.NewPlayerData()
-
-		p1.Stickers = v1
-		Stickers = v1
-	end
-
-	return Stickers
-end
-function t.PlayerStatsToBookMap(p1) --[[ PlayerStatsToBookMap | Line: 228 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-	local StickerFile = require(game.ReplicatedStorage.Stickers.StickerFile)
-	local t2 = {}
-
-	for i, v in ipairs(v1.Book) do
-		t2[StickerFile.FromData(v).BookIndex] = v
-	end
-
-	return t2
-end
-function t.GetStickerAtBookIndex(p1, p2) --[[ GetStickerAtBookIndex | Line: 242 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-	local StickerFile = require(game.ReplicatedStorage.Stickers.StickerFile)
-
-	for i, v in ipairs(v1.Book) do
-		if StickerFile.FromData(v).BookIndex == p2 then
-			return v
-		end
-	end
-
-	return nil
-end
-function t.CountStickersOnHive(p1) --[[ CountStickersOnHive | Line: 256 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-	local StickerFile = require(game.ReplicatedStorage.Stickers.StickerFile)
-	local count = 0
-
-	for i, v in ipairs(v1.Book) do
-		local v2 = StickerFile.FromData(v)
-
-		if v2:IsPlaced() and v2:GetCosmeticType() == "Sticker" then
-			count = count + 1
-		end
-	end
-
-	return count
-end
-function t.PlayerStatsToFirstEmptyBookIndex(p1) --[[ PlayerStatsToFirstEmptyBookIndex | Line: 273 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-
-	if #v1.Book >= v1.BookSize then
-		return nil
-	end
-
-	local v2 = t.PlayerStatsToBookMap(p1)
-
-	for i = 1, v1.BookSize do
-		if v2[i] == nil then
-			return i
-		end
-	end
-
-	return nil
-end
-function t.AddStickerToPlayerBook(p1, p2, p3) --[[ AddStickerToPlayerBook | Line: 300 | Upvalues: t (copy) ]]
-	local v1
-
-	if p3 then
-		if t.GetStickerAtBookIndex(p1, p3) then
-			return false
-		end
-
-		v1 = p3
-	else
-		local v2 = t.PlayerStatsToFirstEmptyBookIndex(p1)
-
-		if not v2 then
-			return false
-		end
-
-		v1 = v2
-	end
-
-	local Book = t.GetPlayerData(p1).Book
-
-	table.insert(Book, p2)
-	p2:RemoveInboxAddedTime()
-	p2:ClearLocationData()
-	p2.BookIndex = v1
-
-	return true
-end
-function t.AddStickerToPlayerInbox(p1, p2) --[[ AddStickerToPlayerInbox | Line: 336 | Upvalues: t (copy) ]]
-	p1.Totals.Stickers.AddedToInbox = (p1.Totals.Stickers.AddedToInbox or 0) + 1
-	p2:SetInboxAddedTime()
-
-	local Inbox = t.GetPlayerData(p1).Inbox
-
-	table.insert(Inbox, 1, p2)
-
-	while #Inbox > 200 do
-		table.remove(Inbox, #Inbox)
-	end
-
-	p2:ClearLocationData()
-
-	return true
-end
-function t.CheckPlayerHasStickerInBook(p1, p2) --[[ CheckPlayerHasStickerInBook | Line: 367 | Upvalues: t (copy) ]]
-	for i, v in ipairs(t.GetPlayerData(p1).Book) do
-		if p2:Equals(v) then
-			return true, i
-		end
-	end
-
-	return false
-end
-function t.SearchPlayerStatsForFile(p1, p2, p3) --[[ SearchPlayerStatsForFile | Line: 398 | Upvalues: t (copy) ]]
-	local v1, v2 = t.CheckPlayerHasStickerInBook(p1, p2)
-
-	if v1 then
-		return true, "Book", v2
-	end
-
-	local Inbox = t.GetPlayerData(p1).Inbox
-
-	for i, v in ipairs(Inbox) do
-		if p2:Equals(v) then
-			return true, "Inbox", i
-		end
-	end
-
-	return false
-end
-function t.CountStickersOfTypeInBook(p1, p2) --[[ CountStickersOfTypeInBook | Line: 429 | Upvalues: t (copy) ]]
-	local v1 = require(script.StickerTypes).NameToID(p2)
-
-	if not v1 then
-		return 0
-	end
-
-	local count = 0
-
-	for i, v in ipairs(t.GetPlayerData(p1).Book) do
-		if v.TypeID == v1 then
-			count = count + 1
-		end
-	end
-
-	return count
-end
-function t.GetTypesInBookMap(p1) --[[ GetTypesInBookMap | Line: 444 | Upvalues: t (copy) ]]
-	local t2 = {}
-	local count = 0
-	local t3 = {}
-
-	for i, v in ipairs(t.GetPlayerData(p1).Book) do
-		local v2 = v:GetTypeName()
-
-		if not t2[v2] then
-			t2[v2] = 0
-
-			local v3 = v:GetCosmeticType()
-
-			t3[v3] = (t3[v3] or 0) + 1
-			count = count + 1
-		end
-
-		t2[v2] = t2[v2] + 1
-	end
-
-	return t2, count, t3
-end
-function t.GetStickersOnHive(p1) --[[ GetStickersOnHive | Line: 473 | Upvalues: t (copy) ]]
-	local t2 = {}
-
-	for i, v in ipairs(t.GetPlayerData(p1).Book) do
-		if v:IsOnHive() then
-			table.insert(t2, v)
-		end
-	end
-
-	return t2
-end
-function t.GetStickersArray(p1) --[[ GetStickersArray | Line: 484 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-	local t2 = {}
-
-	for i, v in ipairs({ v1.Book, v1.Inbox }) do
-		for i2, v2 in ipairs(v) do
-			table.insert(t2, v2)
-		end
-	end
-
-	return t2
-end
-function t.PlayerHasInStack(p1, p2) --[[ PlayerHasInStack | Line: 508 ]]
-	return require(game.ReplicatedStorage.StickerStack).StickerIsInStack(p1, p2)
-end
-function t.RepairInvalidStickersInBook(p1) --[[ RepairInvalidStickersInBook | Line: 518 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-
-	if not v1 then
-		return false
-	end
-
-	local BookSize = v1.BookSize
-	local t2 = {}
-	local list = {}
-
-	local function inspectSF(p1) --[[ inspectSF | Line: 531 | Upvalues: t2 (copy), list (copy), BookSize (copy) ]]
-		local BookIndex = p1.BookIndex
-
-		if t2[BookIndex] then
-			warn("Stickers.RepairInvalidStickersInBook: there are multiple stickers in the same slot ", BookIndex)
-			table.insert(list, p1)
-
+	local function buttonPress(p12) --[[ buttonPress | Line: 200 | Upvalues: v42 (ref), BeeTypeInfoBox (ref), p1 (copy), p2 (copy) ]]
+		if v42 then
 			return
 		end
 
-		if BookIndex <= 0 or BookSize < BookIndex then
-			warn("Stickers.RepairInvalidStickersInBook: a sticker has out of bounds book index")
-			table.insert(list, p1)
-		else
-			t2[BookIndex] = p1
-		end
-	end
+		v42 = true
+		BeeTypeInfoBox.Update(p1)
 
-	for i, v in ipairs(v1.Book) do
-		local BookIndex = v.BookIndex
-
-		if t2[BookIndex] then
-			warn("Stickers.RepairInvalidStickersInBook: there are multiple stickers in the same slot ", BookIndex)
-			table.insert(list, v)
-
-			continue
-		end
-
-		if BookIndex <= 0 or BookSize < BookIndex then
-			warn("Stickers.RepairInvalidStickersInBook: a sticker has out of bounds book index")
-			table.insert(list, v)
-
-			continue
-		end
-
-		t2[BookIndex] = v
-	end
-
-	if #list <= 0 then
-		return false
-	end
-
-	while #list > 0 do
-		local v2 = list[1]
-		local v3 = false
-
-		for i = 1, BookSize do
-			if not t2[i] then
-				v2.BookIndex = i
-				t2[i] = v2
-				v3 = true
-
-				break
-			end
-		end
-
-		if not v3 then
-			break
-		end
-
-		table.remove(list, 1)
-	end
-
-	print("corrupted SFs: ", #list)
-
-	for i, v in ipairs(list) do
-		warn("Stickers.RepairInvalidStickersInBook: straggler corrupted SF")
-
-		if t.RemoveStickerFromPlayerStats(p1, v) then
-			warn("Stickers.RepairInvalidStickersInBook: adding corrupted sticker to inbox")
-			t.AddStickerToPlayerInbox(p1, v)
-		end
-	end
-
-	return true
-end
-function t.GetFileFromPlayerStats(p1, p2) --[[ GetFileFromPlayerStats | Line: 604 | Upvalues: t (copy) ]]
-	local v1 = require(script.StickerFile).FromData(p2)
-
-	if not v1 then
-		return nil
-	end
-
-	local v2, v3, v4 = t.SearchPlayerStatsForFile(p1, v1)
-
-	if v2 then
-		return t.GetPlayerData(p1)[v3][v4], v3, v4
-	end
-
-	return nil
-end
-function t._ResolveTypeID(p1) --[[ _ResolveTypeID | Line: 622 ]]
-	local v1 = nil
-	local v2 = type(p1)
-
-	if v2 == "number" then
-		return p1
-	end
-
-	if v2 == "string" then
-		return require(script.StickerTypes).NameToID(p1)
-	end
-
-	if v2 == "table" then
-		return p1.ID
-	end
-
-	error("error: Invalid sticker type", p1, debug.traceback())
-end
-function t.SearchPlayerStatsForType(p1, p2, p3, p4) --[[ SearchPlayerStatsForType | Line: 641 | Upvalues: t (copy) ]]
-	local v1 = t._ResolveTypeID(p2)
-	local v2 = t.GetPlayerData(p1)
-
-	for i, v in ipairs(if p3 then { v2[p3] } else { v2.Book, v2.Inbox }) do
-		for i2, v4 in ipairs(v) do
-			if v4.TypeID == v1 and (not p4 or v4:IsOnHive()) then
-				return true, v4, v, i2
-			end
-		end
-	end
-
-	return false
-end
-function t.GetTakablesOfType(p1, p2, p3) --[[ GetTakablesOfType | Line: 671 | Upvalues: t (copy) ]]
-	local v1 = t._ResolveTypeID(p2)
-	local t2 = {}
-	local count = 0
-
-	for i, v in ipairs(t.GetPlayerData(p1).Book) do
-		if v.TypeID == v1 then
-			if v:IsPlaced() then
-				table.insert(t2, v)
-
-				continue
-			end
-
-			count = count + 1
-			table.insert(t2, count, v)
-
-			if p3 and p3 <= count then
-				break
-			end
-		end
-	end
-
-	if not p3 then
-		return t2
-	end
-
-	if #t2 <= p3 then
-		return t2
-	end
-
-	local v3 = table.create(p3)
-
-	table.move(t2, 1, p3, 1, v3)
-
-	return v3
-end
-function t.GetStickerFromBookByIDs(p1, p2) --[[ GetStickerFromBookByIDs | Line: 723 | Upvalues: t (copy) ]]
-	for i, v in ipairs(t.GetPlayerData(p1).Book) do
-		if v[1] == p2[1] and v[2] == p2[2] then
-			return v, i
-		end
-	end
-
-	return nil
-end
-function t.ChangeStickerBookIndex(p1, p2, p3) --[[ ChangeStickerBookIndex | Line: 737 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-
-	if p3 <= 0 or v1.BookSize < p3 then
-		warn("Trying to change Sticker\'s book index to invalid index ", p3)
-
-		return false, "Invalid book index"
-	end
-
-	local v2, v3 = t.CheckPlayerHasStickerInBook(p1, p2)
-
-	if not v2 then
-		return false, "Not in book"
-	end
-
-	if v3 == p3 then
-		return false, "Already there"
-	end
-
-	local v4 = nil
-
-	for i, v in ipairs(v1.Book) do
-		if v.BookIndex == p3 then
-			v4 = v
-
-			break
-		end
-	end
-
-	if not v4 then
-		p2.BookIndex = p3
-
-		return true
-	end
-
-	v4.BookIndex = v3
-	p2.BookIndex = p3
-
-	return true
-end
-function t.GiveStickerToPlayerStats(p1, p2, p3, p4) --[[ GiveStickerToPlayerStats | Line: 779 | Upvalues: t (copy) ]]
-	local v1 = require(script.StickerFile).FromData(p2)
-	local v2, v3, v4 = t.SearchPlayerStatsForFile(p1, v1)
-
-	if v2 then
-		return false, v3, v4
-	end
-
-	local v5, v6
-
-	if p4 then
-		v5 = false
-		v6 = v1
-	else
-		v5, v6 = t.AddStickerToPlayerBook(p1, v1), v1
-	end
-
-	local v8 = nil
-
-	if v5 then
-		v8 = "Book"
-	else
-		local v9 = t.AddStickerToPlayerInbox(p1, v6)
-
-		if v9 then
-			v5 = v9
-			v8 = "Inbox"
-		else
-			v5 = v9
-		end
-	end
-
-	if not v5 then
-		return false
-	end
-
-	local v10 = tostring(v6.TypeID)
-
-	p1.Totals.Stickers.AnyReceived = (p1.Totals.Stickers.AnyReceived or 0) + 1
-	p1.Totals.Stickers.Received[v10] = (p1.Totals.Stickers.Received[v10] or 0) + 1
-
-	if p3 then
-		local ReceivedBySource = p1.Totals.Stickers.ReceivedBySource
-
-		if not ReceivedBySource then
-			ReceivedBySource = {}
-			p1.Totals.Stickers.ReceivedBySource = ReceivedBySource
-		end
-
-		if type(p3) == "string" then
-			ReceivedBySource[p3] = (ReceivedBySource[p3] or 0) + 1
-		else
-			for i, v in ipairs(p3) do
-				ReceivedBySource[v] = (ReceivedBySource[v] or 0) + 1
-			end
-		end
-	end
-
-	return true, v8
-end
-function t.RemoveStickerFromPlayerStats(p1, p2) --[[ RemoveStickerFromPlayerStats | Line: 857 | Upvalues: t (copy) ]]
-	local v1, v2, v3 = t.SearchPlayerStatsForFile(p1, p2)
-
-	if v1 then
-		table.remove(t.GetPlayerData(p1)[v2], v3)
-		p2:ClearLocationData()
-
-		return true, v2, v3
-	end
-
-	return false
-end
-function t.InitializePlayerStatClasses(p1) --[[ InitializePlayerStatClasses | Line: 876 | Upvalues: t (copy) ]]
-	local StickerFile = require(script.StickerFile)
-	local v1 = t.GetPlayerData(p1)
-
-	if not v1 then
-		warn("Cannot initialize player sticker classes, nil data", debug.traceback())
-
-		return
-	end
-
-	for i, v in ipairs(v1.Book) do
-		StickerFile.FromData(v)
-	end
-
-	for i, v in ipairs(v1.Inbox) do
-		StickerFile.FromData(v)
-	end
-end
-function t.MoveStickerFromInboxToBook(p1, p2, p3) --[[ MoveStickerFromInboxToBook | Line: 899 | Upvalues: t (copy) ]]
-	local v1 = t.GetPlayerData(p1)
-	local Inbox = v1.Inbox
-	local v2 = 0
-
-	for i, v in ipairs(Inbox) do
-		if p2:Equals(v) then
-			v2 = i
-
-			break
-		end
-	end
-
-	if v2 == 0 then
-		return false
-	end
-
-	if t.GetStickerAtBookIndex(p1, p3) then
-		return false
-	end
-
-	table.remove(Inbox, v2)
-	t.AddStickerToPlayerBook(p1, v1.Inbox[v2], p3)
-
-	return true
-end
-function t.UpdateStickerOnClient(p1) --[[ UpdateStickerOnClient | Line: 938 | Upvalues: t (copy) ]]
-	local StickerFile = require(script.StickerFile)
-
-	StickerFile.FromData(p1)
-
-	local v1 = require(game.ReplicatedStorage.ClientStatCache):Get()
-
-	if not v1 then
-		return
-	end
-
-	local v2, v3, v4 = t.GetFileFromPlayerStats(v1, p1)
-
-	if not v2 then
-		return
-	end
-
-	local v5 = t.GetPlayerData(v1)
-	local v6 = StickerFile.FromData(p1)
-	local BookIndex = v2.BookIndex
-	local BookIndex2 = v6.BookIndex
-
-	if BookIndex ~= BookIndex2 and v3 == "Inbox" then
-		table.remove(v5.Inbox, v4)
-		t.AddStickerToPlayerBook(v1, v2, BookIndex2)
-	elseif BookIndex ~= BookIndex2 then
-		t.ChangeStickerBookIndex(v1, v2, BookIndex2)
-	end
-
-	v2:SetLocationData(v6:GetLocationData())
-	require(game.ReplicatedStorage.Gui.StickerMenus.StickerBookMenu).UpdateSticker(v2)
-end
-function t.InitClientListeners() --[[ InitClientListeners | Line: 1001 | Upvalues: t (copy) ]]
-	local Events = require(game.ReplicatedStorage.Events)
-
-	Events.ClientListen("StickerPlacement", function(p1) --[[ Line: 1006 | Upvalues: t (ref) ]]
-		t.UpdateStickerOnClient(p1)
-	end)
-	Events.ClientListen("StickerPeel", function(p1) --[[ Line: 1019 | Upvalues: t (ref) ]]
-		t.UpdateStickerOnClient(p1)
-	end)
-
-	local PublicStickers = workspace:FindFirstChild("PublicStickers")
-
-	local function addPublicStickerClickDetector(p1) --[[ addPublicStickerClickDetector | Line: 1029 | Upvalues: Events (copy) ]]
-		local v1 = require(script.StickerFile).FromPart(p1)
+		local v1 = p2.GetChild("BeeTypeInfo")
 
 		if v1 then
-			local ClickDetector = Instance.new("ClickDetector")
+			v1.Toggle()
+		end
 
-			ClickDetector.Parent = p1
-			ClickDetector.MaxActivationDistance = 50
-			ClickDetector.MouseClick:Connect(function() --[[ Line: 1042 | Upvalues: v1 (copy), Events (ref) ]]
-				print("calling StickerPublicClick for ", v1:ToString())
-				Events.ClientCall("StickerPublicClick", v1)
-			end)
+		task.wait(0.2)
+		v42 = false
+	end
+
+	if game:GetService("UserInputService").TouchEnabled then
+		v2.TouchTap:connect(buttonPress)
+	else
+		v2.MouseButton1Click:connect(buttonPress)
+	end
+
+	local v5 = ClientStatCache:Get("Honeycomb")
+	local v6 = HoneycombFileTools.CountType(v5, p1)
+	local v8 = false
+
+    local discoveredBees = ClientStatCache:Get("DiscoveredBees") or {}
+	for i, v in ipairs((ClientStatCache:Get("DiscoveredBees"))) do
+		if v == p1 then
+			v8 = true
+
+			break
+		end
+	end
+
+	if require(game.ReplicatedStorage.HoneycombFileTools).HasGiftedType(v5, p1) then
+		v2.StarIcon.ImageTransparency = 0
+	elseif require(game.ReplicatedStorage.StatTools).GetDiscoveredGiftedTypesMap(ClientStatCache:Get())[p1] then
+		v2.StarIcon.ImageTransparency = 0.85
+	else
+		v2.StarIcon.ImageTransparency = 1
+	end
+
+	local Description = v2:FindFirstChild("Description")
+
+	if v8 then
+		Description.Text = v1.Description
+		TypeName.TextColor3 = v32
+		v2.Icon.ImageTransparency = 0
+		v2.Icon.BackgroundTransparency = 0
+		v2.BackgroundColor3 = t[v1.ColorType]
+
+		if v1.Rarity ~= "Common" then
+			TypeName.TextStrokeTransparency = 0
+		end
+
+		if v6 > 0 then
+			v2.Icon.Count.Text = "x" .. v6
 		else
-			warn("invalid part added to public sticker folder")
+			v2.Icon.Count.Text = ""
 		end
+	else
+		Description.Text = "(Undiscovered)"
+		Description.TextTransparency = 0.5
+		v2.Icon.Count.Text = ""
+		v2.BackgroundColor3 = t2[v1.ColorType]
+		TypeName.TextColor3 = v32:lerp(Color3.new(0.7, 0.7, 0.7), 0.5)
+
+		if v1.Rarity ~= "Common" then
+			TypeName.TextStrokeTransparency = 0.45
+		end
+
+		v2.Icon.ImageTransparency = 0.55
+		v2.Icon.BackgroundTransparency = 0.55
 	end
 
-	for i, v in ipairs(PublicStickers:GetChildren()) do
-		addPublicStickerClickDetector(v)
-	end
-
-	PublicStickers.ChildAdded:Connect(function(p1) --[[ Line: 1054 | Upvalues: addPublicStickerClickDetector (copy) ]]
-		print("child added to public stickers")
-
-		if p1:IsA("BasePart") then
-			addPublicStickerClickDetector(p1)
-		end
-	end)
+	return v2
 end
-function t.SortBook(p1) --[[ SortBook | Line: 1068 | Upvalues: t (copy) ]]
-	local Book = t.GetPlayerData(p1).Book
 
-	table.sort(Book, function(p1, p2) --[[ Line: 1075 ]]
-		local v1 = p1:GetSortID()
-		local v2 = p2:GetSortID()
+function t3.Create() --[[ Create | Line: 326 | Upvalues: Menus (copy), v1 (copy), BeeTypeInfoBox (copy), ScreenInfo (copy), ClientStatCache (copy), t (copy), BeeTypes (copy), v3 (copy), makeBeeTypeRow (copy) ]]
+	local v12 = Menus.Make("Bees", v1)
 
-		if v2 < v1 then
-			return false
-		end
+	v12.SetRowHeightScale(1.5)
+	v12.HasTab = true
+	v12.Decal = script:WaitForChild("Icon").Texture
+	v12.BackgroundTransparency = 0.2
+	v12.AddChild((BeeTypeInfoBox.Create()))
 
-		if v1 < v2 then
-			return true
-		end
+	local _, v32 = ScreenInfo.GetTileSize()
 
-		local v3 = p1:IsPlaced()
+	v12.AddRow(function() --[[ Line: 346 | Upvalues: ClientStatCache (ref), v12 (copy), t (ref), v32 (copy) ]]
+		local v1 = ClientStatCache:Get()
+		local v2 = "You Have " .. require(game.ReplicatedStorage.HoneycombFileTools).Count(v1.Honeycomb) .. " Bees"
+		local EmptyMessage = Instance.new("TextLabel")
 
-		if v3 ~= p2:IsPlaced() then
-			return v3
-		end
+		EmptyMessage.Name = "EmptyMessage"
 
-		if p1.CreationTime == p2.CreationTime then
-			if p1.CreatorID == p2.CreatorID then
-				return p1.CreationID < p2.CreationID
+		local RowSize = v12.RowSize
+
+		EmptyMessage.Size = UDim2.new(RowSize.X.Scale, RowSize.X.Offset, RowSize.Y.Scale, (math.floor(RowSize.Y.Offset * 0.25 + 0.5)))
+		EmptyMessage.BackgroundColor3 = t.None:lerp(Color3.new(255/255, 255/255, 255/255), 0.5)
+		EmptyMessage.BackgroundTransparency = 0
+		EmptyMessage.BorderSizePixel = 0
+		EmptyMessage.TextSize = 18 * v32
+		EmptyMessage.Font = "Highway"
+		EmptyMessage.TextTransparency = 0
+		EmptyMessage.Text = v2
+
+		return EmptyMessage
+	end)
+	v12.AddRow(function() --[[ Line: 390 | Upvalues: ClientStatCache (ref), v12 (copy), t (ref), v32 (copy) ]]
+		local v1 = ClientStatCache:Get()
+		local v2 = "You\'ve Discovered " .. require(game.ReplicatedStorage.StatTools).DiscoveredBeeCount(v1) .. " Types of Bees"
+		local EmptyMessage = Instance.new("TextLabel")
+
+		EmptyMessage.Name = "EmptyMessage"
+
+		local RowSize = v12.RowSize
+
+		EmptyMessage.Size = UDim2.new(RowSize.X.Scale, RowSize.X.Offset, RowSize.Y.Scale, (math.floor(RowSize.Y.Offset * 0.25 + 0.5)))
+		EmptyMessage.BackgroundColor3 = t.None:lerp(Color3.new(255/255, 255/255, 255/255), 0.5)
+		EmptyMessage.BackgroundTransparency = 0
+		EmptyMessage.BorderSizePixel = 0
+		EmptyMessage.TextSize = 18 * v32
+		EmptyMessage.Font = "Highway"
+		EmptyMessage.TextTransparency = 0
+		EmptyMessage.Text = v2
+
+		return EmptyMessage
+	end)
+
+	local v4 = BeeTypes.GetRarityNames()
+	local v5 = BeeTypes.GetRarityColors()
+
+	for i, v in ipairs(v4) do
+		v12.AddRow(function() --[[ Line: 458 | Upvalues: v (copy), v32 (copy), v5 (copy), v3 (ref), v12 (copy) ]]
+			local TypeName = Instance.new("TextLabel")
+
+			TypeName.Name = "TypeName"
+			TypeName.Font = "Highway"
+			TypeName.BorderSizePixel = 0
+			TypeName.Text = v .. " Bees"
+			TypeName.TextTransparency = 0
+			TypeName.TextSize = 30 * v32
+			TypeName.BackgroundTransparency = 1
+			TypeName.TextColor3 = v5[v]
+			TypeName.TextStrokeColor3 = v3
+			TypeName.TextStrokeTransparency = 0
+			TypeName.TextYAlignment = Enum.TextYAlignment.Bottom
+
+			local RowSize = v12.RowSize
+
+			TypeName.Size = UDim2.new(RowSize.X.Scale, RowSize.X.Offset, RowSize.Y.Scale, (math.floor(RowSize.Y.Offset * 0.35 + 0.5)))
+
+			local v33 = TypeName:Clone()
+
+			v33.Size = UDim2.new(1, 0, 1, 0)
+			v33.Position = UDim2.new(0, -2 * v32, 0, -2 * v32)
+			v33.Parent = TypeName
+			TypeName.TextColor3 = v3
+			TypeName.TextTransparency = 0.4
+			TypeName.TextStrokeTransparency = 0.4
+
+			return TypeName
+		end)
+
+		for i2, v7 in ipairs((BeeTypes:GetTypesOfRarity(v))) do
+			if not BeeTypes:Get(v7).Hidden then
+				v12.AddRow(function() --[[ Line: 510 | Upvalues: makeBeeTypeRow (ref), v7 (copy), v12 (copy) ]]
+					return makeBeeTypeRow(v7, v12)
+				end)
 			end
-
-			return p1.CreatorID < p2.CreatorID
-		end
-
-		return p1.CreationTime < p2.CreationTime
-	end)
-
-	local v1 = false
-
-	for k, v in pairs(Book) do
-		if v.BookIndex ~= k then
-			v.BookIndex = k
-			v1 = true
 		end
 	end
 
-	return v1
+	ClientStatCache:OnRefresh(function() --[[ Line: 515 | Upvalues: v12 (copy) ]]
+		if not v12.IsOpen then
+			return
+		end
+
+		v12.ConstructContent()
+	end)
+
+	return v12
 end
 
-return t
+return t3
