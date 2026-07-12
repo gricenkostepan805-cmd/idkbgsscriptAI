@@ -1,854 +1,490 @@
--- Script Path: game:GetService("ReplicatedStorage").Menus
--- Took 0.64s to decompile.
+-- Script Path: game:GetService("ReplicatedStorage").NPCs
+-- Took 0.54s to decompile.
 -- Executor: Velocity (1.1.1)
 
 -- https://lua.expert/
 local t = {}
-local v1 = nil
-
-function t.GetCursorLayer() --[[ GetCursorLayer | Line: 10 | Upvalues: v1 (ref) ]]
-	if not v1 then
-		v1 = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("ScreenGui"):WaitForChild("CursorLayer")
-	end
-
-	return v1
-end
-
-local MouseoverBox = require(game.ReplicatedStorage.Gui.MouseoverBox)
-local ScreenInfo = require(game.ReplicatedStorage.ScreenInfo)
-local v2, v3 = ScreenInfo.GetTileSize()
-local _, v4 = ScreenInfo.GetScreenSize()
-local v5
-
-if v3 < 0.7 then
-	v5 = 5.5
-else
-	local v7 = math.max(math.floor((v4 - v2) / v2), 7)
-
-	v5 = if game:GetService("UserInputService").KeyboardEnabled then v7 else math.max(5.5, v7 - 2)
-end
-
-local v9 = UDim2.new(0, v2 * 4, 0, v2 * v5)
-local v10 = UDim2.new(0, v2 * 4, 0, v2)
-local v11 = UDim2.new(0, v2 * 0.7, 0, v2 * 0.7)
-local v12 = v11:lerp(UDim2.new(), 0.15000000000000002)
-local TitleBar = script:WaitForChild("TitleBar")
-
-ScreenInfo.ResizeGui(TitleBar)
-function t.GetDefaultRowSize(p1) --[[ GetDefaultRowSize | Line: 117 | Upvalues: v10 (copy) ]]
-	return v10 + UDim2.new()
-end
-
-local function newGuiElem(p1) --[[ newGuiElem | Line: 128 ]]
-	local v1 = Instance.new(p1)
-
-	v1.BorderSizePixel = 2
-
-	return v1
-end
-
-local function eSetColor(p1, p2) --[[ eSetColor | Line: 134 ]]
-	p1.BackgroundColor3 = p2
-	p1.BorderColor3 = p2:lerp(Color3.new(0/255, 0/255, 0/255), 0.2)
-end
-
-local t2 = {
-	Open = function(p1, p2) --[[ Line: 145 | Upvalues: v11 (copy) ]]
-		if p1.IsOpen then
-			return
-		end
-
-		p1.IsOpen = true
-		p1.AlertOn = false
-		p1.UpdateAlert()
-
-		if p1.Tab ~= nil then
-			local Tab = p1.Tab
-			local Icon = Tab.Icon
-
-			if Icon and p1.Decal == nil then
-				Icon.BackgroundTransparency = 0
-			elseif Icon then
-				Icon.ImageTransparency = 0
-			end
-
-			if p2 then
-				Tab.Size = v11
-			else
-				task.spawn(function() --[[ Line: 168 | Upvalues: Tab (copy), v11 (ref) ]]
-					task.wait()
-					Tab:TweenSize(v11, "Out", "Quad", 0.1, true)
-				end)
-			end
-		end
-
-		if p1.Parent ~= nil then
-			for k, v in pairs(p1.Parent.Children) do
-				if v ~= p1 then
-					v.Close(p2)
-				end
-			end
-		end
-
-		local Frame = p1.Frame
-
-		if Frame ~= nil then
-			p1.ConstructContent()
-
-			local v1 = if p1.OpenRightToLeft then -1 else 0
-
-			if p2 then
-				Frame.Position = UDim2.new(v1, 0, 0, 0)
-			else
-				Frame:TweenPosition(UDim2.new(v1, 0, 0, 0), "Out", "Quint", 0.25, true)
-			end
-		end
-
-		for i, v in ipairs(p1.OnOpen) do
-			v()
-		end
-	end,
-	Close = function(p1, p2) --[[ Line: 252 | Upvalues: v12 (copy) ]]
-		if not p1.IsOpen then
-			return
-		end
-
-		p1.IsOpen = false
-
-		if p1.OnClose then
-			for i, v in ipairs(p1.OnClose) do
-				v(p1)
-			end
-		end
-
-		if p1.Tab ~= nil then
-			local Tab = p1.Tab
-			local Icon = Tab.Icon
-
-			if Icon and p1.Decal == nil then
-				Icon.BackgroundTransparency = 0.2
-			elseif Icon then
-				Icon.ImageTransparency = 0.2
-			end
-
-			if p2 then
-				Tab.Size = v12
-			else
-				Tab:TweenSize(v12, "Out", "Quad", 0.1, true)
-			end
-		end
-
-		for i, v in ipairs(p1.Children) do
-			v.Close(p2)
-		end
-
-		local Frame = p1.Frame
-
-		if Frame == nil then
-			return
-		end
-
-		local v1 = if p1.OpenRightToLeft then 0.01 else -1.01
-
-		if p2 then
-			Frame.Position = UDim2.new(v1, 0, 0, 0)
-			p1.ClearContent()
-
-			return
-		end
-
-		Frame:TweenPosition(UDim2.new(v1, 0, 0, 0), "Out", "Quint", 0.25, true, function() --[[ Line: 346 | Upvalues: p1 (copy) ]]
-			if p1.IsOpen then
-				return
-			end
-
-			p1.ClearContent()
-		end)
-	end,
-	OpenWithParent = function(p1, p2) --[[ Line: 363 ]]
-		if not p1.Parent then
-			return
-		end
-
-		p1.Parent.OpenWithParent()
-		p1.Open()
-	end,
-	CloseWithParent = function(p1, p2) --[[ Line: 373 ]]
-		if p1.Parent then
-			p1.Parent.CloseWithParent()
-		else
-			p1.Close()
-		end
-	end,
-	Toggle = function(p1, p2) --[[ Line: 384 ]]
-		if p1.IsOpen then
-			p1.Close(p2)
-		else
-			p1.Open(p2)
-		end
-	end,
-	AddChild = function(p1, p2) --[[ Line: 401 ]]
-		table.insert(p1.Children, p2)
-		p1.ChildrenByName[p2.Name] = p2
-		p2.Parent = p1
-
-		if not p1.MenuSize or p2.MenuSize then
-			return
-		end
-
-		p2.MenuSize = p1.MenuSize
-	end,
-	MakeChild = function(p1, p2, p3) --[[ Line: 413 | Upvalues: t (copy) ]]
-		if p3 == nil then
-			p3 = p1.Color
-		end
-
-		local v1 = t.Make(p2, p3)
-
-		p1.AddChild(v1)
-
-		return v1
-	end,
-	GetChild = function(p1, p2) --[[ Line: 420 ]]
-		return p1.ChildrenByName[p2]
-	end,
-	AddRow = function(p1, p2, p3) --[[ Line: 424 ]]
-		if p3 then
-			local v1 = p2
-
-			p2 = function() --[[ Line: 431 | Upvalues: v1 (copy), p3 (copy) ]]
-				local v12 = v1()
-
-				if type(v12) ~= "userdata" then
-					return v12
-				end
-
-				if p3.Center then
-					local MenuCenterX = Instance.new("BoolValue")
-
-					MenuCenterX.Name = "MenuCenterX"
-					MenuCenterX.Value = true
-					MenuCenterX.Parent = v12
-				end
-
-				if p3.SkipPadY then
-					local SkipPadY = Instance.new("BoolValue")
-
-					SkipPadY.Name = "SkipPadY"
-					SkipPadY.Value = true
-					SkipPadY.Parent = v12
-				end
-
-				return v12
-			end
-		end
-
-		table.insert(p1.Rows, p2)
-	end,
-	Construct = function(p1) --[[ Line: 461 | Upvalues: v12 (copy), MouseoverBox (copy) ]]
-		if p1.Frame ~= nil then
-			p1.Frame:Destroy()
-		end
-
-		local v1 = p1.CreateFrame()
-		local count = 0
-
-		for i, v in ipairs(p1.Children) do
-			if v.HasTab then
-				count = count + 1
-
-				break
-			end
-		end
-
-		if p1.GamepadDoOnOpen then
-			p1.RemoveOnOpen(p1.GamepadDoOnOpen)
-			p1.GamepadDoOnOpen = nil
-		end
-
-		if p1.GamepadDoOnClose then
-			p1.RemoveOnClose(p1.GamepadDoOnClose)
-			p1.GamepadDoOnClose = nil
-		end
-
-		local v2 = "ButtonBCloseMenu" .. tostring(p1)
-
-		local function f3() --[[ Line: 499 | Upvalues: v2 (copy), p1 (copy) ]]
-			local ContextActionService = game:GetService("ContextActionService")
-
-			ContextActionService:BindAction(v2, function(p12, p2, p3) --[[ Line: 504 | Upvalues: p1 (ref) ]]
-				if p2 == Enum.UserInputState.Begin then
-					p1.Close()
-
-					return
-				end
-
-				return Enum.ContextActionResult.Pass
-			end, false, Enum.KeyCode.ButtonB)
-
-			local v1 = p1.Frame:FindFirstChild("Content")
-			local v22 = if v1 then v1:GetPropertyChangedSignal("CanvasPosition"):Connect(function() --[[ Line: 517 | Upvalues: v1 (copy) ]]
-				v1.CanvasPosition = Vector2.new(0, v1.CanvasPosition.Y)
-			end) else nil
-			local GamepadUtil = require(game.ReplicatedStorage.Gui.GamepadUtil)
-
-			if not GamepadUtil.UseGamepadUI() then
-				local function v3() --[[ Line: 527 | Upvalues: ContextActionService (copy), v2 (ref), v3 (ref), p1 (ref), v22 (ref) ]]
-					ContextActionService:UnbindAction(v2)
-
-					if v3 then
-						p1.RemoveOnClose(v3)
-						v3 = nil
-					end
-
-					if not v22 then
-						p1.GamepadDoOnClose = nil
-
-						return
-					end
-
-					v22:Disconnect()
-					v22 = nil
-					p1.GamepadDoOnClose = nil
-				end
-
-				p1.DoOnClose(v3)
-				p1.GamepadDoOnClose = v3
-
-				return
-			end
-
-			if game.GamepadService.GamepadCursorEnabled then
-				local function v4() --[[ Line: 564 | Upvalues: ContextActionService (copy), v2 (ref), v4 (ref), p1 (ref), v22 (ref) ]]
-					ContextActionService:UnbindAction(v2)
-
-					if v4 then
-						p1.RemoveOnClose(v4)
-						v4 = nil
-					end
-
-					if v22 then
-						v22:Disconnect()
-						v22 = nil
-					end
-
-					p1.GamepadDoOnClose = nil
-				end
-
-				p1.DoOnClose(v4)
-				p1.GamepadDoOnClose = v4
-			else
-				GamepadUtil.EnableCursor(p1.Tab)
-
-				local function v5() --[[ Line: 590 | Upvalues: ContextActionService (copy), v2 (ref), GamepadUtil (copy), v5 (ref), p1 (ref), v22 (ref) ]]
-					ContextActionService:UnbindAction(v2)
-					GamepadUtil.DisableCursor()
-
-					if v5 then
-						p1.RemoveOnClose(v5)
-						v5 = nil
-					end
-
-					if v22 then
-						v22:Disconnect()
-						v22 = nil
-					end
-
-					p1.GamepadDoOnClose = nil
-				end
-
-				p1.DoOnClose(v5)
-				p1.GamepadDoOnClose = v5
-			end
-		end
-
-		p1.DoOnOpen(f3)
-		p1.GamepadDoOnOpen = f3
-
-		if count > 0 then
-			local v4 = p1.RowSize.X.Offset * 0.25 * 0.7
-			local v5 = p1.RowSize.Y.Offset * 0.7
-
-			UDim2.new(0, v4, 0, v5)
-
-			local Frame = Instance.new("Frame")
-
-			Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-			Frame.BackgroundTransparency = 1
-			Frame.BorderSizePixel = 0
-			Frame.Size = UDim2.new(0, v4 * 6, 0, v5)
-			Frame.Parent = v1.ChildTabs
-			Frame.Position = UDim2.new(0, 0, 0, p1.RowSize.Y.Offset * 0.15000000000000002)
-
-			local count2 = 0
-
-			for i, v in ipairs(p1.Children) do
-				if v.HasTab then
-					local ImageButton = Instance.new("ImageButton")
-
-					ImageButton.BorderSizePixel = 0
-					ImageButton.AutoButtonColor = false
-					ImageButton.AnchorPoint = Vector2.new(0.5, 1)
-					ImageButton.Size = v12
-					ImageButton.BackgroundColor3 = v.Color
-					ImageButton.BackgroundTransparency = 0.5
-					ImageButton.BackgroundTransparency = 1
-					ImageButton.ImageTransparency = 1
-
-					local v6 = (count2 + 0.5) * v4
-
-					if p1.TabsRightToLeft then
-						v6 = -v6
-					end
-
-					ImageButton.Position = UDim2.new(0, v6, 0, v5 * 1.15)
-					ImageButton.Parent = v1.ChildTabs
-					ImageButton.MouseButton1Click:Connect(function(p1) --[[ Line: 662 | Upvalues: v (copy) ]]
-						v.Toggle()
-					end)
-
-					local Icon = Instance.new("ImageLabel")
-
-					Icon.Name = "Icon"
-					Icon.Parent = ImageButton
-					Icon.AnchorPoint = Vector2.new(0.5, 0.5)
-					Icon.Position = UDim2.new(0.5, 0, 0.5, 0)
-					Icon.Size = UDim2.new(1, 0, 1, 0)
-
-					local Alert = Instance.new("ImageButton")
-
-					Alert.Name = "Alert"
-					Alert.AnchorPoint = Vector2.new(0.45, 0.45)
-					Alert.Parent = ImageButton
-					Alert.Size = UDim2.new(0, 0, 0, 0)
-					Alert.Image = script.AlertDecal.Texture
-					Alert.Position = UDim2.new(0.9, 0, 0.15, 0)
-					Alert.BackgroundTransparency = 1
-					Alert.BorderSizePixel = 0
-					v.Tab = ImageButton
-
-					if v.Decal ~= nil then
-						ImageButton.Icon.Image = v.Decal
-						ImageButton.Icon.BackgroundTransparency = 1
-					end
-
-					count2 = count2 + 1
-					MouseoverBox.Register(ImageButton, "   " .. (v.DisplayName or v.Name))
-				end
-			end
-		end
-
-		local Children = v1:WaitForChild("Children")
-
-		for i, v in ipairs(p1.Children) do
-			v.Construct().Parent = Children
-		end
-
-		if p1.Parent == nil then
-			p1.Close(true)
-		end
-
-		if p1.OnConstruct then
-			for k, v in pairs(p1.OnConstruct) do
-				v()
-			end
-		end
-
-		return v1
-	end,
-	ConstructContent = function(p1) --[[ Line: 738 | Upvalues: TitleBar (copy) ]]
-		if p1.ContentVisible then
-			if not p1.Frame then
-				return
-			end
-
-			p1.Frame.Active = true
-
-			local v1 = p1.Frame:FindFirstChild("Content")
-
-			p1.Canvas = v1
-			v1.ScrollBarThickness = p1.ScrollBarThickness
-			v1.ScrollingEnabled = true
-			v1.ScrollingDirection = Enum.ScrollingDirection.Y
-			v1:ClearAllChildren()
-
-			local RowPadY = p1.RowPadY
-			local v2 = RowPadY
-			local v3 = 0
-			local Offset = v1.Size.X.Offset
-
-			if p1.ForceVerticalScrollBarVisible then
-				Offset = Offset - p1.ScrollBarThickness
-			end
-
-			local v4 = if p1.RowsUnsized then function(p1) --[[ Line: 795 | Upvalues: Offset (ref), v2 (ref), RowPadY (copy) ]]
-				local MenuCenterX = p1:FindFirstChild("MenuCenterX")
-
-				if MenuCenterX and MenuCenterX.Value then
-					p1.Position = UDim2.new(0, (Offset - p1.Size.X.Offset) * 0.5, 0, v2)
-					else
-					p1.Position = UDim2.new(0, 0, 0, v2)
-				end
-
-				local Offset2 = p1.Size.Y.Offset
-
-				if not p1:FindFirstChild("SkipPadY") then
-					Offset2 = Offset2 + RowPadY
-				end
-
-				v2 = v2 + Offset2
-			end else function(p12) --[[ Line: 819 | Upvalues: p1 (copy), v2 (ref), v3 (ref), RowPadY (copy) ]]
-				p12.Size = p1.RowSize
-				p12.Position = UDim2.new(0, 0, 0, v2)
-				v3 = v3 + 1
-
-				local Offset = p1.RowSize.Y.Offset
-
-				if not p12:FindFirstChild("SkipPadY") then
-					Offset = Offset + RowPadY
-				end
-
-				v2 = v2 + Offset
-			end
-
-			local function v5(p12) --[[ addRow | Line: 835 | Upvalues: v2 (ref), RowPadY (copy), TitleBar (ref), p1 (copy), v5 (copy), v1 (copy), v4 (ref), v3 (ref) ]]
-				if typeof(p12) == "table" then
-					for k, v in pairs(p12) do
-						if k == "TitleBar" then
-							v2 = v2 - RowPadY
-
-							local v12 = TitleBar:Clone()
-							local v22 = v.Color or p1.Color
-
-							v12.BackgroundColor3 = v22
-							v12.TextLabel.BackgroundColor3 = v22
-							v12.TextLabel.Text = v.Name
-
-							if v.TextSize then
-								v12.TextLabel.TextSize = v.TextSize
-							else
-								v12.TextLabel.TextScaled = string.len(v.Name) >= 18
-							end
-
-							v12.MouseButton1Click:Connect(function(p12) --[[ Line: 863 | Upvalues: p1 (ref) ]]
-								p1.Toggle()
-							end)
-							v5(v12)
-						end
-					end
-				else
-					local ok, result = pcall(function() --[[ Line: 878 | Upvalues: p12 (copy), v1 (ref) ]]
-						p12.Parent = v1
-					end)
-
-					if not ok then
-						print("Menu error: " .. result)
-						print("Suspect: " .. p12.Name)
-					end
-
-					v4(p12)
-					v3 = v3 + 1
-				end
-			end
-
-			for i, v in ipairs(p1.Rows) do
-				local v6 = v(v1)
-
-				if v6 then
-					v5(v6)
-				end
-			end
-
-			if p1.ForcedContentCanvasSize ~= nil then
-				v1.CanvasSize = p1.ForcedContentCanvasSize
-
-				return
-			end
-
-			if p1.ForceVerticalScrollBarVisible and v2 < v1.Size.Y.Offset then
-				v2 = v1.Size.Y.Offset + 1
-			end
-
-			v1.CanvasSize = UDim2.new(1, 0, 0, v2)
-			else
-	if not p1.Frame then
-		return
-	end
-
-	p1.Frame.Active = false
-end
-end,
-ClearContent = function(p1) --[[ Line: 950 ]]
-	if not p1.ContentVisible then
-		return
-	end
-
-	if p1.Frame == nil then
-		return
-	end
-
-	local v1 = p1.Frame:FindFirstChild("Content")
-
-	if not p1.PreserveScrollPosition then
-		v1.CanvasPosition = Vector2.new(0, 0)
-	end
-
-	v1:ClearAllChildren()
-
-	if not p1.OnClearContent then
-		return
-	end
-
-	for i, v in ipairs(p1.OnClearContent) do
-		v(p1)
-	end
-end,
-CreateFrame = function(p1) --[[ Line: 970 | Upvalues: v9 (copy), v10 (copy) ]]
-	local Color = p1.Color
-	local v2 = if p1.BlockMouse then "ImageButton" else "Frame"
-	local v3 = p1.MenuSize or (if p1.SizeYScale then UDim2.new(v9.X.Scale, v9.X.Offset, v9.Y.Scale * p1.SizeYScale, v9.Y.Offset * p1.SizeYScale) else v9)
-	local v5 = Instance.new(v2)
-
-	v5.Name = p1.Name
-	v5.Size = v3
-	v5.BackgroundTransparency = 1
-	v5.Active = false
-	v5.Selectable = p1.FrameSelectable
-
-	if p1.BlockMouse then
-		v5.AutoButtonColor = false
-	end
-
-	local Backstage = Instance.new("Frame")
-
-	Backstage.BackgroundTransparency = 1
-	Backstage.Size = UDim2.new(1, 0, 1, 0)
-	Backstage.Name = "Backstage"
-	Backstage.Parent = v5
-
-	if p1.ContentVisible then
-		local ScrollingFrame = Instance.new("ScrollingFrame")
-
-		ScrollingFrame.BorderSizePixel = 2
-		ScrollingFrame.Name = "Content"
-
-		local v6 = p1.ContentColor or Color:lerp(Color3.new(0/255, 0/255, 0/255), 0.2)
-
-		ScrollingFrame.BackgroundColor3 = v6
-		ScrollingFrame.BorderColor3 = v6:lerp(Color3.new(0/255, 0/255, 0/255), 0.2)
-		ScrollingFrame.Size = UDim2.new(0, v3.Width.Offset, 0, v3.Height.Offset - v10.Height.Offset)
-		ScrollingFrame.CanvasSize = v3
-		ScrollingFrame.ScrollBarThickness = p1.ScrollBarThickness
-		ScrollingFrame.Parent = v5
-		ScrollingFrame.Position = UDim2.new(0, 0, 0, v10.Y.Offset)
-		ScrollingFrame.BackgroundTransparency = p1.BackgroundTransparency
-	end
-
-	local Children = Instance.new("Frame")
-
-	Children.BackgroundTransparency = 1
-	Children.Size = UDim2.new(1, 0, 1, 0)
-	Children.Name = "Children"
-	Children.Parent = v5
-
-	local ChildTabs = Instance.new("Frame")
-
-	ChildTabs.BackgroundTransparency = 1
-	Children.Size = UDim2.new(1, 0, 1, 0)
-	ChildTabs.Name = "ChildTabs"
-	ChildTabs.Parent = v5
-	p1.Frame = v5
-
-	return v5
-end,
-ForceContentCanvasSize = function(p1, p2) --[[ Line: 1071 ]]
-	if not p2 then
-		p1.ForcedContentCanvasSize = nil
-
-		return
-	end
-
-	p1.ForcedContentCanvasSize = p2
-
-	if not (p1.Frame and p1.Frame.Content) then
-		return
-	end
-
-	p1.Frame.Content.CanvasSize = p2
-end,
-VisibleRowSize = function(p1) --[[ Line: 1087 ]]
-	local RowSize = p1.RowSize
-
-	return UDim2.new(RowSize.X.Scale, RowSize.X.Offset - p1.ScrollBarThickness, RowSize.Y.Scale, RowSize.Y.Offset)
-end,
-SetRowHeightScale = function(p1, p2) --[[ Line: 1100 | Upvalues: v10 (copy) ]]
-	p1.RowSize = UDim2.new(v10.X.Scale, v10.X.Offset, v10.Y.Scale, (math.floor(v10.Y.Offset * p2 + 0.5)))
-end,
-Alert = function(p1) --[[ Line: 1112 ]]
-	p1.ShakeTab()
-
-	if p1.AlertOn or p1.IsOpen then
-		return
-	end
-
-	p1.AlertOn = true
-	p1.UpdateAlert()
-end,
-ShakeTab = function(p1) --[[ Line: 1127 ]]
-	local Tab = p1.Tab
-
-	if not Tab then
-		return
-	end
-
-	local Icon = Tab.Icon
-
-	if Icon then
-		Icon.Size = UDim2.new(0.75, 0, 0.75, 0)
-		Icon:TweenSize(UDim2.new(1, 0, 1, 0), "Out", "Elastic", 1, true)
-	end
-end,
-UpdateAlert = function(p1) --[[ Line: 1148 ]]
-	if p1.Tab == nil then
-		return
-	end
-
-	if p1.Tab.Icon == nil then
-		return
-	end
-
-	local Alert = p1.Tab.Alert
-
-	if Alert == nil then
-		return
-	end
-
-	if p1.AlertOn then
-		Alert:TweenSize(UDim2.new(0.4, 0, 0.4, 0), "Out", "Elastic", 0.5, true)
-	else
-		Alert:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Quad", 0.25, true)
-	end
-end,
-UpdateAlerts = function(p1) --[[ Line: 1182 ]]
-	p1.UpdateAlert()
-
-	for i, v in ipairs(p1.Children) do
-		v.UpdateAlerts()
-	end
-end,
-MakeContentInvisible = function(p1) --[[ Line: 1192 ]]
-	p1.ContentVisible = false
-end,
-ShowGuiObject = function(p1) --[[ Line: 1202 ]]
-	p1.Frame.Visible = true
-end,
-HideGuiObject = function(p1) --[[ Line: 1211 ]]
-	p1.Frame.Visible = false
-end,
-DoOnClearContent = function(p1, p2) --[[ Line: 1221 ]]
-	if p1.OnClearContent then
-		table.insert(p1.OnClearContent, p2)
-	else
-		p1.OnClearContent = { p2 }
-	end
-end,
-DoOnOpen = function(p1, p2) --[[ Line: 1232 ]]
-	if p1.OnOpen then
-		table.insert(p1.OnOpen, p2)
-	else
-		p1.OnOpen = { p2 }
-	end
-end,
-DoOnClose = function(p1, p2) --[[ Line: 1244 ]]
-	if p1.OnClose then
-		table.insert(p1.OnClose, p2)
-	else
-		p1.OnClose = { p2 }
-	end
-end,
-DoOnConstruct = function(p1, p2) --[[ Line: 1258 ]]
-	if p1.OnConstruct then
-		table.insert(p1.OnConstruct, p2)
-	else
-		p1.OnConstruct = { p2 }
-	end
-end,
-RemoveOnOpen = function(p1, p2) --[[ Line: 1269 ]]
-	if not p1.OnOpen then
-		return
-	end
-
-	local t = {}
-
-	for i, v in ipairs(p1.OnOpen) do
-		if v ~= p2 then
-			table.insert(t, v)
-		end
-	end
-
-	p1.OnOpen = t
-end,
-RemoveOnClose = function(p1, p2) --[[ Line: 1281 ]]
-	if not p1.OnClose then
-		return
-	end
-
-	local t = {}
-
-	for i, v in ipairs(p1.OnClose) do
-		if v ~= p2 then
-			table.insert(t, v)
-		end
-	end
-
-	p1.OnClose = t
-end,
-ChildIsOpen = function(p1) --[[ Line: 1296 ]]
-	for i, v in ipairs(p1.Children) do
-		if v.IsOpen then
-			return true
-		end
-
-		return v:ChildIsOpen()
-	end
-
-	return false
-end
-}
-
-function t.Make(p1, p2) --[[ Make | Line: 1307 | Upvalues: v3 (copy), v10 (copy), v2 (copy), t2 (copy) ]]
+local Quests = require(game.ReplicatedStorage.Quests)
+local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
+local Events = require(game.ReplicatedStorage.Events)
+local t2 = {}
+local t3 = {}
+
+function t.Make(p1) --[[ Make | Line: 14 | Upvalues: t3 (copy), Quests (copy), t2 (copy) ]]
 	local t = {
-		Parent = nil,
-		IsOpen = true,
-		Frame = nil,
-		HasTab = false,
-		ForceVerticalScrollBarVisible = false,
-		RowsUnsized = true,
-		BackgroundTransparency = 0,
-		Tab = nil,
-		ContentVisible = true,
-		ForcedContentCanvasSize = nil,
-		Decal = nil,
-		PreserveScrollPosition = false,
-		AlertOn = false,
+		Model = nil,
+		Alert = nil,
+		Expiration = nil,
 		Name = p1,
-		ScrollBarThickness = 12 * v3,
-		RowSize = v10,
-		RowPadY = v2 * 0.125,
-		Color = p2,
-		Rows = {},
-		RowsByName = {},
-		Children = {},
-		ChildrenByName = {},
-		OnOpen = {},
-		OnClose = {},
-		OnClearContent = {}
+		Events = {},
+		OverrideEvents = {}
 	}
+	local v1 = nil
+
+	function t.AddEvent(p12, p2) --[[ AddEvent | Line: 27 | Upvalues: t3 (ref), Quests (ref), p1 (copy), t (copy), v1 (ref) ]]
+		if not p2.Type then
+			if p2.Quest then
+				p2.Type = "Single Quest"
+			elseif p2.QuestPool then
+				p2.Type = "Repeat Quest"
+			else
+				p2.Type = "Repeat Dialogue"
+			end
+		end
+
+		if p2.Type == "Options" then
+			for i, v in ipairs(p2.Options) do
+				if v.ActionTag then
+					t3[v.ActionTag] = {
+						Requirements = v.Requirements,
+						Action = v.Action
+					}
+				end
+			end
+		elseif p2.Type == "Dialogue" then
+			if p2.Start and p2.Start.ActionTag then
+				t3[p2.Start.ActionTag] = {
+					Requirements = p2.Start.Requirements,
+					Action = p2.Start.Action
+				}
+			end
+		elseif p2.Type == "Repeat Dialogue" and (p2.Ongoing and p2.Ongoing.ActionTag) then
+			t3[p2.Ongoing.ActionTag] = {
+				Requirements = p2.Ongoing.Requirements,
+				Action = p2.Ongoing.Action
+			}
+		end
+
+		if p2.Quest then
+			if type(p2.Quest) == "string" then
+				local v12 = Quests:Get(p2.Quest)
+
+				if not v12 then
+					error("npc " .. p1 .. " references nil quest " .. p2.Quest)
+				end
+
+				v12.NPC = t.Name
+				v1 = p2.Quest
+			else
+				local Quest2 = p2.Quest
+
+				if not Quest2.Requirements then
+					if v1 then
+						Quest2.Requirements = {
+							{
+								Type = "Completed Quests",
+								Quests = { v1 }
+							}
+						}
+					else
+						Quest2.Requirements = {}
+					end
+				end
+
+				if p2.StartReqs then
+					for i, v in ipairs(p2.StartReqs) do
+						table.insert(Quest2.Requirements, v)
+					end
+				end
+
+				Quest2.NPC = t.Name
+				Quests:Create(Quest2)
+				p2.Quest = Quest2.Name
+				v1 = Quest2.Name
+			end
+		end
+
+		table.insert(t.Events, p2)
+	end
+	function t.AddOverrideEvent(p12, p2) --[[ AddOverrideEvent | Line: 155 | Upvalues: t3 (ref), Quests (ref), p1 (copy), t (copy) ]]
+		if not p2.Type then
+			if p2.Quest then
+				p2.Type = "Single Quest"
+			elseif p2.QuestPool then
+				p2.Type = "Repeat Quest"
+			else
+				p2.Type = "Repeat Dialogue"
+			end
+		end
+
+		if p2.Type == "Options" then
+			for i, v in ipairs(p2.Options) do
+				if v.ActionTag then
+					t3[v.ActionTag] = {
+						Requirements = v.Requirements,
+						Action = v.Action
+					}
+				end
+			end
+		elseif p2.Type == "Dialogue" then
+			if p2.Start and p2.Start.ActionTag then
+				t3[p2.Start.ActionTag] = {
+					Requirements = p2.Start.Requirements,
+					Action = p2.Start.Action
+				}
+			end
+		elseif p2.Type == "Repeat Dialogue" and (p2.Ongoing and p2.Ongoing.ActionTag) then
+			t3[p2.Ongoing.ActionTag] = {
+				Requirements = p2.Ongoing.Requirements,
+				Action = p2.Ongoing.Action
+			}
+		end
+
+		if p2.Quest then
+			if type(p2.Quest) == "string" then
+				if not Quests:Get(p2.Quest) then
+					error("npc " .. p1 .. " references nil quest " .. p2.Quest)
+				end
+			else
+				local Quest2 = p2.Quest
+
+				if not Quest2.Requirements then
+					Quest2.Requirements = {}
+				end
+
+				if p2.StartReqs then
+					for i, v in ipairs(p2.StartReqs) do
+						table.insert(Quest2.Requirements, v)
+					end
+				end
+
+				Quest2.NPC = t.Name
+
+				local _, _2 = pcall(function() --[[ Line: 244 | Upvalues: Quests (ref), Quest2 (copy) ]]
+					Quests:Create(Quest2)
+				end)
+
+				p2.Quest = Quest2.Name
+			end
+		end
+
+		table.insert(t.OverrideEvents, p2)
+	end
+	t2[p1] = t
+
+	return t
+end
+
+local v1 = t.Make("Black Bear")
+
+require(script.BlackBearInit)(v1)
+
+local v2 = t.Make("Panda Bear")
+
+require(script.PandaBearInit)(v2)
+require(script.BrownBearInit)(t.Make("Brown Bear"))
+require(script.BrownBearInitOld)(t.Make("Brown Bear Old"))
+require(script.PolarBearInit)(t.Make("Polar Bear"))
+
+local v3 = t.Make("Science Bear")
+
+require(script.ScienceBearInit)(v3)
+
+local v4 = t.Make("Mother Bear")
+
+require(script.MotherBearInit)(v4)
+
+local v5 = t.Make("Spirit Bear")
+
+require(script.SpiritBearInit)(v5)
+
+local v6 = t.Make("Onett")
+
+require(script.Onett1Init)(v6)
+require(script.DapperBearInit)(t.Make("Dapper Bear"))
+require(script.SunBearInit)(t.Make("Sun Bear"))
+require(script.GummyBearInit)(t.Make("Gummy Bear"))
+require(script.SunBear2Init)(t.Make("Sun Bear 2"))
+require(script.BeeBearInit)(t.Make("Bee Bear"))
+require(script.SunBear3Init)(t.Make("Sun Bear 3"))
+require(script.BeeBear2Init)(t.Make("Bee Bear 2"))
+require(script.SunBear4Init)(t.Make("Sun Bear 4"))
+require(script.BeeBear3Init)(t.Make("Bee Bear 3"))
+require(script.GummyBear2Init)(t.Make("Gummy Bear 2"))
+require(script.BeeBear4Init)(t.Make("Bee Bear 4"))
+require(script.BeeBear5Init)(t.Make("Bee Bear 5"))
+require(script.BeeBear6Init)(t.Make("Bee Bear 6"))
+require(script.SunBear5Init)(t.Make("Sun Bear 5"))
+require(script.BeeBear7Init)(t.Make("Bee Bear 7"))
+require(script.BeeBear2025Init)(t.Make("Bee Bear 2025"))
+require(script.BubbleBeeMan6Init)(t.Make("Bubble Bee Man 6"))
+require(script.RileyBeeInit)(t.Make("Riley Bee"))
+require(script.BuckoBeeInit)(t.Make("Bucko Bee"))
+require(script.HoneyBeeInit)(t.Make("Honey Bee"))
+require(script.StickBugInit)(t.Make("Stick Bug"))
+require(script.RoboBearInit)(t.Make("Robo Bear"))
+
+local v7 = t.Make("Ant Challenge Info")
+
+require(script.AntChallengeSignInit)(v7)
+
+local v8 = t.Make("Egg Hunt Info")
+
+require(script.EggHuntInfoInit)(v8)
+require(script.WindShrineInit)(t.Make("Wind Shrine"))
+
+local function findNpcParts(p1) --[[ findNpcParts | Line: 412 ]]
+	local v1 = game:GetService("Workspace"):WaitForChild("NPCs"):FindFirstChild(p1.Name)
+
+	if not v1 then
+		p1.Model = nil
+		p1.Alert = nil
+
+		return
+	end
+
+	p1.Model = v1
+
+	if v1:FindFirstChild("Platform") then
+		p1.Alert = v1.Platform.AlertPos.AlertGui.ImageLabel
+	else
+		p1.Alert = nil
+	end
+end
+
+local function findAllNpcParts() --[[ findAllNpcParts | Line: 438 | Upvalues: t2 (copy), findNpcParts (copy) ]]
+	for k, v in pairs(t2) do
+		findNpcParts(v)
+	end
+end
+
+function t.Get(p1) --[[ Get | Line: 451 | Upvalues: t2 (copy) ]]
+	return t2[p1]
+end
+function t.GetEventPhase(p1, p2) --[[ GetEventPhase | Line: 456 ]]
+	if p2 == nil then
+		return nil, nil
+	end
+
+	local v1 = p2.NPCs[p1]
+
+	if v1 == nil then
+		v1 = {
+			Event = 1,
+			Phase = "Start"
+		}
+	end
+
+	return v1.Event, v1.Phase
+end
+function t.ReresolveEventPhase(p1, p2) --[[ ReresolveEventPhase | Line: 471 | Upvalues: t (copy) ]]
+	local v1, v2 = t.UpdateEventPhase(p1, p2, 1, "Start", true)
+
+	return v1, v2
+end
+function t.SetEventPhase(p1, p2, p3, p4) --[[ SetEventPhase | Line: 481 ]]
+	p2.NPCs[p1] = {
+		Event = p3,
+		Phase = p4
+	}
+end
+function t.UpdateEventPhase(p1, p2, p3, p4, p5) --[[ UpdateEventPhase | Line: 486 | Upvalues: t (copy), Quests (copy) ]]
+	local v1 = t.Get(p1).Events[p3]
+
+	if not v1 then
+		print("no eventData for npc " .. tostring(p1) .. " event " .. tostring(p3))
+
+		return p3, "Unready"
+	end
+
+	local Type = v1.Type
+
+	if Type == "Single Quest" then
+		local Quest = v1.Quest
+
+		if Quests:FlaggedComplete(Quest, p2) then
+			return t.UpdateEventPhase(p1, p2, p3 + 1, "Start")
+		end
+
+		if Quests:GetActiveData(Quest, p2) == nil then
+			if Quests:CheckRequirements(Quest, p2) then
+				return p3, "Start"
+			end
+
+			return p3, "Unready"
+		end
+
+		if Quests:CanComplete(Quest, p2) then
+			return p3, "Finish"
+		end
+
+		return p3, "Ongoing"
+	end
+
+	if Type == "Repeat Quest" then
+		local Cooldown = v1.Cooldown
+		local v2, v3, _ = Quests:GetPoolState(v1.QuestPool, p2)
+
+		if v3 == "Unqualified" then
+			return p3, "Unready"
+		end
+
+		if v3 == "Cooldown" then
+			return p3, "Cooldown"
+		end
+
+		if v3 == "New" then
+			return p3, "Start"
+		end
+
+		if Quests:CanComplete(v2, p2) then
+			return p3, "Finish"
+		end
+
+		return p3, "Ongoing"
+	end
+
+	if Type == "Dialogue" then
+		if p4 == "Start" and not p5 then
+			return p3, "Ongoing"
+		end
+
+		return p3 + 1, "Start"
+	end
+
+	if Type == "Options" then
+		local StatTools = require(game.ReplicatedStorage.StatTools)
+
+		if v1.FinishReqs and StatTools.CheckReqs(p2, v1.FinishReqs) then
+			return t.UpdateEventPhase(p1, p2, p3 + 1, "Start")
+		end
+
+		if v1.StartReqs and not StatTools.CheckReqs(p2, v1.StartReqs) then
+			return p3, "Unready"
+		end
+
+		return p3, "Start"
+	end
+
+	if Type == "Repeat Dialogue" then
+		return p3, "Ongoing"
+	end
+end
+function t.GetNextEventPhase(p1, p2) --[[ GetNextEventPhase | Line: 600 | Upvalues: t (copy) ]]
+	local v1, v2 = t.GetEventPhase(p1, p2)
+
+	return t.UpdateEventPhase(p1, p2, v1, v2)
+end
+function t.ResolveEventPhase(p1) --[[ ResolveEventPhase | Line: 605 | Upvalues: ClientStatCache (copy), t (copy), Events (copy) ]]
+	local v1 = ClientStatCache:Get()
+	local v2, v3 = t.GetEventPhase(p1, v1)
+	local v4, v5 = t.UpdateEventPhase(p1, v1, v2, v3)
+
+	if v4 ~= v2 or v5 ~= v3 then
+		t.SetEventPhase(p1, v1, v4, v5)
+		Events.ClientCall("UpdatePlayerNPCState", p1, v4, v5)
+	end
+
+	return v4, v5
+end
+function t.ResolveOverrideEvent(p1, p2) --[[ ResolveOverrideEvent | Line: 628 | Upvalues: t (copy), ClientStatCache (copy), Quests (copy) ]]
+	local v1 = t.Get(p1)
+
+	if #v1.OverrideEvents <= 0 then
+		return nil
+	end
+
+	local v2 = ClientStatCache:Get()
+	local StatTools = require(game.ReplicatedStorage.StatTools)
+
+	for i, v in ipairs(v1.OverrideEvents) do
+		if v ~= p2 and not StatTools.CheckReqs(v2, v.FinishReqs) and (if v.StartReqs == nil then true else StatTools.CheckReqs(v2, v.StartReqs)) then
+			if v.Type ~= "Single Quest" then
+				return v, "Start"
+			end
+
+			local Quest = v.Quest
+			local v4 = Quests:Get(Quest)
+
+			if v4 and not v4.Hidden and not Quests:FlaggedComplete(Quest, v2) then
+				if Quests:GetActiveData(Quest, v2) == nil then
+					if Quests:CheckRequirements(Quest, v2) then
+						return v, "Start"
+					end
+
+					continue
+				end
+
+				if Quests:CanComplete(Quest, v2) then
+					return v, "Finish"
+				end
+			end
+		end
+	end
+
+	return nil
+end
+function t.GetAlertType(p1, p2) --[[ GetAlertType | Line: 732 | Upvalues: t (copy) ]]
+	local v1, v2 = t.GetNextEventPhase(p1, p2)
+	local v3 = t.Get(p1).Events[v1]
+
+	if v2 == "Finish" then
+		return "Exclamation"
+	end
+
+	local v4, v5 = t.ResolveOverrideEvent(p1)
+
+	if v4 and v4.Type == "Single Quest" then
+		if v5 == "Start" or v5 == "Finish" then
+			return "Exclamation"
+		end
+
+		if v4.Ongoing then
+			return nil
+		end
+	end
+
+	if not v3 then
+		print("there is no event for name " .. tostring(p1) .. " event " .. tostring(v1), debug.traceback())
+
+		return nil
+	end
+
+	if v3.Type == "Single Quest" then
+		if v2 == "Start" or v2 == "Finish" then
+			return "Exclamation"
+		end
+	elseif v3.Type == "Repeat Quest" and (v2 == "Start" or v2 == "Finish") then
+		return "Exclamation"
+	end
+
+	return nil
+end
+function t.GetOptionActionByTag(p1) --[[ GetOptionActionByTag | Line: 782 | Upvalues: t3 (copy) ]]
+	return t3[p1]
+end
+function t.UpdateAlerts(p1) --[[ UpdateAlerts | Line: 794 | Upvalues: t2 (copy), findNpcParts (copy), ClientStatCache (copy), t (copy), Events (copy) ]]
+	for k, v in pairs(t2) do
+		findNpcParts(v)
+	end
+
+	if game:GetService("Players").LocalPlayer == nil then
+		return
+	end
+
+	local v1 = ClientStatCache:Get()
 
 	for k, v in pairs(t2) do
-		t[k] = function(...) --[[ Line: 1350 | Upvalues: v (copy), t (copy) ]]
-			return v(t, ...)
+		if p1 then
+			local v2, _ = t.GetEventPhase(k, v1)
+			local v3, v4 = t.ReresolveEventPhase(k, v1)
+
+			if type(v3) ~= "string" and (type(v2) ~= "string" and (v2 ~= nil and (v3 ~= nil and v3 < v2))) then
+				t.SetEventPhase(k, v1, v3, v4)
+				Events.ClientCall("UpdatePlayerNPCState", k, v3, v4)
+			end
+		end
+
+		if v.Alert ~= nil then
+			if t.GetAlertType(k, v1) == nil then
+				v.Alert.ImageTransparency = 1
+
+				continue
+			end
+
+			v.Alert.ImageTransparency = 0
 		end
 	end
-	return t
-	end
+end
+
+return t
