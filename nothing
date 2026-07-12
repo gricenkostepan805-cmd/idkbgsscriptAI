@@ -1,337 +1,320 @@
--- Script Path: game:GetService("ReplicatedStorage").Gui.BeeMenu
--- Took 0.17s to decompile.
--- Executor: Velocity (1.1.1)
+-- PlayerTools: Server-side player utility functions
+-- Required by TeleportManager, ClassicMinigame scripts, Toys, etc.
+-- Provides GetStats, IsLoaded, SetFlag, CheckReqs, CountBees, etc.
 
--- https://lua.expert/
-local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
-local Menus = require(game.ReplicatedStorage.Menus)
-local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
+local PlayerTools = {}
+
+local PlayerStatManager = require(script.Parent.PlayerStatManager)
+local StatTools = require(game.ReplicatedStorage.StatTools)
 local HoneycombFileTools = require(game.ReplicatedStorage.HoneycombFileTools)
-local ScreenInfo = require(game.ReplicatedStorage.ScreenInfo)
-local v1 = script:WaitForChild("Color").Value
-local v2 = v1:lerp(Color3.fromRGB(255, 255, 255), 0.25)
-local BeeTypeInfoBox = require(game.ReplicatedStorage.Gui.BeeTypeInfoBox)
-local v3 = Color3.fromRGB(27, 42, 53)
-local t = {}
-local t2 = {}
-local t3 = {}
 
-for i, v in ipairs(BeeTypes.GetColorNames()) do
-	t[v] = BeeTypes.ColorNameToColor3(v):lerp(Color3.new(0/255, 0/255, 0/255), 0.15)
-	t2[v] = t[v]
+function PlayerTools.GetStats(player)
+	return PlayerStatManager.GetStats(player)
 end
 
-local function makeProtoBeeTypeRow() --[[ makeProtoBeeTypeRow | Line: 38 | Upvalues: BeeTypes (copy), v2 (copy), v3 (copy) ]]
-	local v1 = BeeTypes:GetType("Basic")
-	local ImageButton = Instance.new("ImageButton")
-
-	ImageButton.BackgroundColor3 = v2
-	ImageButton.BorderSizePixel = 0
-	ImageButton.ImageTransparency = 1
-	ImageButton.AutoButtonColor = true
-
-	local TextBackground = Instance.new("Frame")
-
-	TextBackground.Name = "TextBackground"
-	TextBackground.BorderSizePixel = 0
-	TextBackground.BackgroundTransparency = 0.3
-	TextBackground.BackgroundColor3 = Color3.new(255/255, 255/255, 255/255)
-	TextBackground.Parent = ImageButton
-	TextBackground.Size = UDim2.new(0.675, 0, 1, 0)
-	TextBackground.Position = UDim2.new(0.32499999999999996, 0, 0, 0)
-	TextBackground.Selectable = false
-
-	local StarIcon = Instance.new("ImageLabel")
-
-	StarIcon.BackgroundTransparency = 1
-	StarIcon.ImageColor3 = Color3.fromRGB(27, 42, 53)
-	StarIcon.Image = script.StarIcon.Texture
-	StarIcon.ImageTransparency = 0.5
-	StarIcon.Name = "StarIcon"
-	StarIcon.Size = UDim2.new(0.1, 0, 0.25, 0)
-	StarIcon.Position = UDim2.new(0.875, 0, 0.05, 0)
-	StarIcon.Parent = ImageButton
-	StarIcon.Selectable = false
-
-	local TypeName = Instance.new("TextLabel")
-
-	TypeName.Name = "TypeName"
-	TypeName.Font = "Highway"
-	TypeName.BorderSizePixel = 0
-	TypeName.Parent = ImageButton
-	TypeName.BackgroundColor3 = Color3.new(255, 255, 255)
-	TypeName.BackgroundTransparency = 1
-	TypeName.Text = "Basic Bee"
-	TypeName.TextWrapped = true
-	TypeName.TextColor3 = v3
-	TypeName.Size = UDim2.new(0.625, 0, 0.33999999999999997, 0)
-	TypeName.Position = UDim2.new(0.35, 0, 0, 0)
-	TypeName.TextSize = 24
-	TypeName.Selectable = false
-
-	local Description = Instance.new("TextLabel")
-
-	Description.Name = "Description"
-	Description.Font = "Highway"
-	Description.BorderSizePixel = 0
-	Description.Parent = ImageButton
-	Description.BackgroundColor3 = Color3.new(255, 255, 255)
-	Description.BackgroundTransparency = 1
-	Description.Text = v1.Description
-	Description.TextWrapped = true
-	Description.TextYAlignment = "Center"
-	Description.Size = UDim2.new(0.625, 0, 0.6200000000000001, 0)
-	Description.Position = UDim2.new(0.35, 0, 0.33999999999999997, 0)
-	Description.TextSize = 17
-	Description.Selectable = false
-
-	local Icon = Instance.new("ImageLabel")
-
-	Icon.Name = "Icon"
-	Icon.Parent = ImageButton
-	Icon.BackgroundTransparency = 0
-	Icon.Position = UDim2.new(0.028124999999999997, 0, 0.125, 0)
-	Icon.Size = UDim2.new(0, 80, 0, 80)
-	Icon.ImageTransparency = 0
-	Icon.BorderSizePixel = 2
-	Icon.Selectable = false
-
-	local Count = Instance.new("TextLabel")
-
-	Count.Name = "Count"
-	Count.Font = "SourceSansBold"
-	Count.BorderSizePixel = 0
-	Count.Parent = Icon
-	Count.BackgroundColor3 = Color3.new(255, 255, 255)
-	Count.BackgroundTransparency = 1
-	Count.Text = "x5"
-	Count.TextStrokeTransparency = 0
-	Count.TextColor3 = Color3.new(245, 245, 245)
-	Count.TextStrokeColor3 = v3
-	Count.TextSize = 26
-	Count.Size = UDim2.new(0.7, 0, 0.55, 0)
-	Count.Position = UDim2.new(0.55, 0, 0.875, 0)
-	Count.Selectable = false
-
-	return ImageButton
+function PlayerTools.IsLoaded(player)
+	local stats = PlayerStatManager.GetStats(player)
+	return stats ~= nil
 end
 
-local v4 = nil
-
-local function makeBeeTypeRow(p1, p2) --[[ makeBeeTypeRow | Line: 165 | Upvalues: v4 (ref), makeProtoBeeTypeRow (copy), ScreenInfo (copy), BeeTypes (copy), v3 (copy), BeeTypeInfoBox (copy), ClientStatCache (copy), HoneycombFileTools (copy), t (copy), t2 (copy) ]]
-	if not v4 then
-		v4 = makeProtoBeeTypeRow(p2)
-		ScreenInfo.ResizeGui(v4)
+function PlayerTools.SetFlag(player, flagName, isServerSide)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		StatTools.SetFlag(stats, flagName, isServerSide)
 	end
-
-	local v1 = BeeTypes:GetType(p1)
-	local v2 = v4:Clone()
-
-	v2.Size = p2.VisibleRowSize()
-	v2.TextBackground.BackgroundColor3 = v1.ColorType3:lerp(Color3.new(255/255, 255/255, 255/255), 0.25)
-	v2.Icon.Image = v1.FaceOutline
-	v2.Icon.ImageColor3 = v1.FaceColor
-	v2.Icon.BackgroundColor3 = v1.BodyColor
-
-	local TypeName = v2:FindFirstChild("TypeName")
-
-	TypeName.Text = p1 .. " Bee"
-
-	local v32 = v3
-
-	if v1.Rarity ~= "Common" then
-		v32 = v1.RarityColor3
-		TypeName.TextStrokeColor3 = v3
-	end
-
-	local v42 = false
-
-	local function buttonPress(p12) --[[ buttonPress | Line: 200 | Upvalues: v42 (ref), BeeTypeInfoBox (ref), p1 (copy), p2 (copy) ]]
-		if v42 then
-			return
-		end
-
-		v42 = true
-		BeeTypeInfoBox.Update(p1)
-
-		local v1 = p2.GetChild("BeeTypeInfo")
-
-		if v1 then
-			v1.Toggle()
-		end
-
-		task.wait(0.2)
-		v42 = false
-	end
-
-	if game:GetService("UserInputService").TouchEnabled then
-		v2.TouchTap:connect(buttonPress)
-	else
-		v2.MouseButton1Click:connect(buttonPress)
-	end
-
-	local v5 = ClientStatCache:Get("Honeycomb")
-	local v6 = HoneycombFileTools.CountType(v5, p1)
-	local v8 = false
-
-    local discoveredBees = ClientStatCache:Get("DiscoveredBees") or {}
-	for i, v in ipairs((ClientStatCache:Get("DiscoveredBees"))) do
-		if v == p1 then
-			v8 = true
-
-			break
-		end
-	end
-
-	if require(game.ReplicatedStorage.HoneycombFileTools).HasGiftedType(v5, p1) then
-		v2.StarIcon.ImageTransparency = 0
-	elseif require(game.ReplicatedStorage.StatTools).GetDiscoveredGiftedTypesMap(ClientStatCache:Get())[p1] then
-		v2.StarIcon.ImageTransparency = 0.85
-	else
-		v2.StarIcon.ImageTransparency = 1
-	end
-
-	local Description = v2:FindFirstChild("Description")
-
-	if v8 then
-		Description.Text = v1.Description
-		TypeName.TextColor3 = v32
-		v2.Icon.ImageTransparency = 0
-		v2.Icon.BackgroundTransparency = 0
-		v2.BackgroundColor3 = t[v1.ColorType]
-
-		if v1.Rarity ~= "Common" then
-			TypeName.TextStrokeTransparency = 0
-		end
-
-		if v6 > 0 then
-			v2.Icon.Count.Text = "x" .. v6
-		else
-			v2.Icon.Count.Text = ""
-		end
-	else
-		Description.Text = "(Undiscovered)"
-		Description.TextTransparency = 0.5
-		v2.Icon.Count.Text = ""
-		v2.BackgroundColor3 = t2[v1.ColorType]
-		TypeName.TextColor3 = v32:lerp(Color3.new(0.7, 0.7, 0.7), 0.5)
-
-		if v1.Rarity ~= "Common" then
-			TypeName.TextStrokeTransparency = 0.45
-		end
-
-		v2.Icon.ImageTransparency = 0.55
-		v2.Icon.BackgroundTransparency = 0.55
-	end
-
-	return v2
 end
 
-function t3.Create() --[[ Create | Line: 326 | Upvalues: Menus (copy), v1 (copy), BeeTypeInfoBox (copy), ScreenInfo (copy), ClientStatCache (copy), t (copy), BeeTypes (copy), v3 (copy), makeBeeTypeRow (copy) ]]
-	local v12 = Menus.Make("Bees", v1)
+function PlayerTools.RemoveFlag(player, flagName, isServerSide)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		StatTools.RemoveFlag(stats, flagName, isServerSide)
+	end
+end
 
-	v12.SetRowHeightScale(1.5)
-	v12.HasTab = true
-	v12.Decal = script:WaitForChild("Icon").Texture
-	v12.BackgroundTransparency = 0.2
-	v12.AddChild((BeeTypeInfoBox.Create()))
+function PlayerTools.HasFlag(player, flagName, isServerSide)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return StatTools.HasFlag(stats, flagName, isServerSide)
+	end
+	return false
+end
 
-	local _, v32 = ScreenInfo.GetTileSize()
+function PlayerTools.CheckReqs(player, reqs)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return StatTools.CheckReqs(stats, reqs)
+	end
+	return false
+end
 
-	v12.AddRow(function() --[[ Line: 346 | Upvalues: ClientStatCache (ref), v12 (copy), t (ref), v32 (copy) ]]
-		local v1 = ClientStatCache:Get()
-		local v2 = "You Have " .. require(game.ReplicatedStorage.HoneycombFileTools).Count(v1.Honeycomb) .. " Bees"
-		local EmptyMessage = Instance.new("TextLabel")
+function PlayerTools.CountBees(player, filter)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats and stats.Honeycomb then
+		return HoneycombFileTools.Count(stats.Honeycomb, filter)
+	end
+	return 0
+end
 
-		EmptyMessage.Name = "EmptyMessage"
+function PlayerTools.CheckIfRoboBearChallengeRoundIsRunning(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return StatTools.CheckIfRoboBearChallengeRoundIsRunning(stats)
+	end
+	return false
+end
 
-		local RowSize = v12.RowSize
+function PlayerTools.CheckIfRoboBearChallengeIsActive(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return StatTools.CheckIfRoboBearChallengeIsActive(stats)
+	end
+	return false
+end
 
-		EmptyMessage.Size = UDim2.new(RowSize.X.Scale, RowSize.X.Offset, RowSize.Y.Scale, (math.floor(RowSize.Y.Offset * 0.25 + 0.5)))
-		EmptyMessage.BackgroundColor3 = t.None:lerp(Color3.new(255/255, 255/255, 255/255), 0.5)
-		EmptyMessage.BackgroundTransparency = 0
-		EmptyMessage.BorderSizePixel = 0
-		EmptyMessage.TextSize = 18 * v32
-		EmptyMessage.Font = "Highway"
-		EmptyMessage.TextTransparency = 0
-		EmptyMessage.Text = v2
+function PlayerTools.GetHoney(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return stats.Honey or 0
+	end
+	return 0
+end
 
-		return EmptyMessage
-	end)
-	v12.AddRow(function() --[[ Line: 390 | Upvalues: ClientStatCache (ref), v12 (copy), t (ref), v32 (copy) ]]
-		local v1 = ClientStatCache:Get()
-		local v2 = "You\'ve Discovered " .. require(game.ReplicatedStorage.StatTools).DiscoveredBeeCount(v1) .. " Types of Bees"
-		local EmptyMessage = Instance.new("TextLabel")
+function PlayerTools.SetHoney(player, amount)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		stats.Honey = amount
+	end
+end
 
-		EmptyMessage.Name = "EmptyMessage"
+function PlayerTools.AddHoney(player, amount)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		stats.Honey = (stats.Honey or 0) + amount
+	end
+end
 
-		local RowSize = v12.RowSize
+function PlayerTools.GetEggs(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return stats.Eggs or {}
+	end
+	return {}
+end
 
-		EmptyMessage.Size = UDim2.new(RowSize.X.Scale, RowSize.X.Offset, RowSize.Y.Scale, (math.floor(RowSize.Y.Offset * 0.25 + 0.5)))
-		EmptyMessage.BackgroundColor3 = t.None:lerp(Color3.new(255/255, 255/255, 255/255), 0.5)
-		EmptyMessage.BackgroundTransparency = 0
-		EmptyMessage.BorderSizePixel = 0
-		EmptyMessage.TextSize = 18 * v32
-		EmptyMessage.Font = "Highway"
-		EmptyMessage.TextTransparency = 0
-		EmptyMessage.Text = v2
+function PlayerTools.GetHoneycomb(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return stats.Honeycomb
+	end
+	return nil
+end
 
-		return EmptyMessage
-	end)
+function PlayerTools.GetTotals(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return stats.Totals
+	end
+	return nil
+end
 
-	local v4 = BeeTypes.GetRarityNames()
-	local v5 = BeeTypes.GetRarityColors()
+function PlayerTools.GetSettings(player)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		return stats.Settings or {}
+	end
+	return {}
+end
 
-	for i, v in ipairs(v4) do
-		v12.AddRow(function() --[[ Line: 458 | Upvalues: v (copy), v32 (copy), v5 (copy), v3 (ref), v12 (copy) ]]
-			local TypeName = Instance.new("TextLabel")
+function PlayerTools.SetSetting(player, key, value)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		if not stats.Settings then
+			stats.Settings = {}
+		end
+		stats.Settings[key] = value
+	end
+end
 
-			TypeName.Name = "TypeName"
-			TypeName.Font = "Highway"
-			TypeName.BorderSizePixel = 0
-			TypeName.Text = v .. " Bees"
-			TypeName.TextTransparency = 0
-			TypeName.TextSize = 30 * v32
-			TypeName.BackgroundTransparency = 1
-			TypeName.TextColor3 = v5[v]
-			TypeName.TextStrokeColor3 = v3
-			TypeName.TextStrokeTransparency = 0
-			TypeName.TextYAlignment = Enum.TextYAlignment.Bottom
+-- ============================================================
+-- ITEM MANAGEMENT
+-- ============================================================
 
-			local RowSize = v12.RowSize
+function PlayerTools.TakeItems(player, itemsTable)
+	-- Remove items from the player's inventory
+	-- itemsTable is an array of {Category, Type, Amount} entries
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return false end
 
-			TypeName.Size = UDim2.new(RowSize.X.Scale, RowSize.X.Offset, RowSize.Y.Scale, (math.floor(RowSize.Y.Offset * 0.35 + 0.5)))
-
-			local v33 = TypeName:Clone()
-
-			v33.Size = UDim2.new(1, 0, 1, 0)
-			v33.Position = UDim2.new(0, -2 * v32, 0, -2 * v32)
-			v33.Parent = TypeName
-			TypeName.TextColor3 = v3
-			TypeName.TextTransparency = 0.4
-			TypeName.TextStrokeTransparency = 0.4
-
-			return TypeName
-		end)
-
-		for i2, v7 in ipairs((BeeTypes:GetTypesOfRarity(v))) do
-			if not BeeTypes:Get(v7).Hidden then
-				v12.AddRow(function() --[[ Line: 510 | Upvalues: makeBeeTypeRow (ref), v7 (copy), v12 (copy) ]]
-					return makeBeeTypeRow(v7, v12)
-				end)
+	for _, item in ipairs(itemsTable or {}) do
+		if item.Category == "Honey" then
+			stats.Honey = math.max(0, (stats.Honey or 0) - (item.Amount or 0))
+		elseif item.Category == "Eggs" then
+			if stats.Eggs and item.Type then
+				stats.Eggs[item.Type] = math.max(0, (stats.Eggs[item.Type] or 0) - (item.Amount or 0))
+				if stats.Eggs[item.Type] <= 0 then
+					stats.Eggs[item.Type] = nil
+				end
+			end
+		elseif item.Category == "Items" then
+			if stats.Items and item.Type then
+				local current = stats.Items[item.Type]
+				if type(current) == "number" then
+					stats.Items[item.Type] = math.max(0, current - (item.Amount or 1))
+					if stats.Items[item.Type] <= 0 then
+						stats.Items[item.Type] = nil
+					end
+				elseif current ~= nil then
+					stats.Items[item.Type] = nil
+				end
 			end
 		end
 	end
-
-	ClientStatCache:OnRefresh(function() --[[ Line: 515 | Upvalues: v12 (copy) ]]
-		if not v12.IsOpen then
-			return
-		end
-
-		v12.ConstructContent()
-	end)
-
-	return v12
+	return true
 end
 
-return t3
+function PlayerTools.TakeItem(player, itemTable)
+	-- Remove a single item from the player
+	return PlayerTools.TakeItems(player, { itemTable })
+end
+
+function PlayerTools.GiveItems(player, itemsTable)
+	-- Give items to the player
+	local stats = PlayerStatManager.GetStats(player)
+	if not stats then return false end
+
+	for _, item in ipairs(itemsTable or {}) do
+		if item.Category == "Honey" then
+			stats.Honey = (stats.Honey or 0) + (item.Amount or 0)
+		elseif item.Category == "Eggs" then
+			if not stats.Eggs then stats.Eggs = {} end
+			if item.Type then
+				stats.Eggs[item.Type] = (stats.Eggs[item.Type] or 0) + (item.Amount or 0)
+			end
+		elseif item.Category == "Items" then
+			if not stats.Items then stats.Items = {} end
+			if item.Type then
+				local current = stats.Items[item.Type]
+				if type(current) == "number" then
+					stats.Items[item.Type] = current + (item.Amount or 1)
+				else
+					stats.Items[item.Type] = item.Amount or true
+				end
+			end
+		elseif item.Category == "Bundle" then
+			if not stats.Totals then stats.Totals = {} end
+			if not stats.Totals.Bundles then stats.Totals.Bundles = {} end
+		end
+	end
+	return true
+end
+
+-- ============================================================
+-- ALERTS & MESSAGING
+-- ============================================================
+
+function PlayerTools.Alert(player, message, color)
+	-- Send an alert message to a specific player
+	local Events = require(game.ReplicatedStorage.Events)
+	Events.ServerCall("ReceiveAlert", player, message, color)
+end
+
+function PlayerTools.AlertAll(message, color)
+	-- Send an alert message to all players
+	local Events = require(game.ReplicatedStorage.Events)
+	Events.ServerCallToAll("ReceiveAlert", message, color)
+end
+
+-- ============================================================
+-- CACHE MANAGEMENT
+-- ============================================================
+
+function PlayerTools.CacheResetStat(player, statName)
+	-- Mark a specific stat as needing refresh on client
+	-- In the original game, this triggers a client stat cache reset for the given stat
+	local Events = require(game.ReplicatedStorage.Events)
+	local stats = PlayerStatManager.GetStats(player)
+	if stats then
+		Events.ServerCall("QuestsChanged", player, statName)
+	end
+end
+
+function PlayerTools.CacheReset(player, statPath)
+	-- Reset the client's cached stat for the given path
+	-- statPath can be a string or table path
+	local Events = require(game.ReplicatedStorage.Events)
+	if type(statPath) == "string" then
+		Events.ServerCall("QuestsChanged", player, statPath)
+	elseif type(statPath) == "table" then
+		Events.ServerCall("QuestsChanged", player, statPath)
+	end
+end
+
+-- ============================================================
+-- POSITION & ZONE UTILITIES
+-- ============================================================
+
+function PlayerTools.GetCFrame(player)
+	-- Get the player's current world position as a CFrame
+	local character = player.Character
+	if character then
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		if rootPart then
+			return rootPart.CFrame
+		end
+	end
+	return CFrame.new(0, 5, 0)
+end
+
+function PlayerTools.PlayerToFlowerZone(player)
+	-- Determine which flower field zone the player is in
+	local cframe = PlayerTools.GetCFrame(player)
+	local position = cframe.Position
+
+	-- Check against known field positions
+	-- This is a simplified version - the original uses field boundary detection
+	local fields = {
+		{ Name = "Sunflower", X = -80, Z = 30, Radius = 60 },
+		{ Name = "Dandelion", X = -100, Z = 100, Radius = 50 },
+		{ Name = "Mushroom", X = -100, Z = -50, Radius = 50 },
+		{ Name = "Blue Flower", X = 100, Z = 70, Radius = 50 },
+		{ Name = "Clover", X = -150, Z = 50, Radius = 60 },
+		{ Name = "Spider", X = -50, Z = -100, Radius = 50 },
+		{ Name = "Bamboo", X = 50, Z = -100, Radius = 50 },
+		{ Name = "Strawberry", X = -150, Z = -80, Radius = 50 },
+		{ Name = "Pineapple", X = 100, Z = -150, Radius = 50 },
+		{ Name = "Cactus", X = 150, Z = -100, Radius = 60 },
+		{ Name = "Pumpkin", X = -200, Z = -150, Radius = 50 },
+		{ Name = "Pine Tree", X = -50, Z = -200, Radius = 50 },
+		{ Name = "Rose", X = 200, Z = -200, Radius = 50 },
+		{ Name = "Mountain Top", X = 0, Z = -300, Radius = 50 },
+		{ Name = "Stump", X = 250, Z = 100, Radius = 50 },
+		{ Name = "Pepper", X = 200, Z = 200, Radius = 50 },
+	}
+
+	for _, field in ipairs(fields) do
+		local dist = math.sqrt((position.X - field.X)^2 + (position.Z - field.Z)^2)
+		if dist < field.Radius then
+			return field.Name
+		end
+	end
+
+	return nil
+end
+
+-- ============================================================
+-- PLAYER STATE CHECKS
+-- ============================================================
+
+function PlayerTools.IsActive(player)
+	-- Check if the player is active (loaded and in game)
+	if not player then return false end
+	local stats = PlayerStatManager.GetStats(player)
+	return stats ~= nil
+end
+
+function PlayerTools.IsInGame(player)
+	-- Check if the player is currently in the game world
+	return PlayerTools.IsActive(player)
+end
+
+return PlayerTools
