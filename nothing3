@@ -1,20 +1,35 @@
-local HoneycombManager = {}
+-- Script Path: game:GetService("ReplicatedStorage").StatReqs["Equip Collector"]
+-- Took 0.09s to decompile.
+-- Executor: Velocity (1.1.3)
 
-function HoneycombManager.GetHiveSlot(player, slotIndex)
-	if not player then return nil end
-	print("[HoneycombManager] GetHiveSlot for " .. player.Name)
-	return nil
-end
+-- https://lua.expert/
+return {
+	Description = function(p1) --[[ Description | Line: 6 ]]
+		return nil
+	end,
+	Check = function(p1, p2) --[[ Check | Line: 13 ]]
+		if not (p2 and p1) then
+			return false
+		end
 
-function HoneycombManager.SetHiveSlot(player, slotIndex, beeData)
-	if not player then return false end
-	print("[HoneycombManager] SetHiveSlot for " .. player.Name)
-	return true
-end
+		local EquippedCollector = p2.EquippedCollector
 
-function HoneycombManager.GetHiveCount(player)
-	if not player then return 0 end
-	return 5 -- Default hive count
-end
+		if not EquippedCollector then
+			return false
+		end
 
-return HoneycombManager
+		local Collectors = p1.Collectors
+
+		if not Collectors then
+			Collectors = { p1.Collector }
+		end
+
+		for i, v in ipairs(Collectors) do
+			if v == EquippedCollector then
+				return true
+			end
+		end
+
+		return false
+	end
+}
