@@ -1,196 +1,265 @@
--- Script Path: game:GetService("ReplicatedStorage").ItemPackages
--- Took 0.35s to decompile.
+-- Script Path: game:GetService("ReplicatedStorage").Gui.BackpackGui
+-- Took 0.16s to decompile.
 -- Executor: Velocity (1.1.1)
 
 -- https://lua.expert/
 local t = {}
+local v1 = nil
+local v2 = Vector2.new(0.5, 0.5)
 
-require(game.ReplicatedStorage.Events)
-
-local isLocalPlayer = game:GetService("Players").LocalPlayer == nil
-local v1 = script:GetChildren()
-local t2 = {
-	CanPurchase = function() --[[ CanPurchase | Line: 75 ]]
-		return true
-	end,
-	PurchaseRequirements = function() --[[ PurchaseRequirements | Line: 76 ]]
-		return nil
-	end,
-	PurchaseExpiration = function() --[[ PurchaseExpiration | Line: 77 ]]
-		return nil
-	end
-}
-
-local function nilCall() --[[ nilCall | Line: 80 ]]
-	return nil
-end
-
-local list = {
-	"Exists",
-	"PlayerHas",
-	"GetCost",
-	"CanGive",
-	"Give",
-	"Take",
-	"PurchaseRequirements",
-	"PurchaseEffect",
-	"Equippable",
-	"PlayerHasEquipped",
-	"Equip",
-	"Unequip",
-	"Title",
-	"Description",
-	"Icon",
-	"CanPurchase",
-	"PurchaseExpiration",
-	"NumericDescription",
-	"CountAmountPlayerHas"
-}
-local t3 = {}
-
-for i, v in ipairs(v1) do
-	local v2 = require(v)
-
-	v2.Name = v.Name
-
-	for i2, v3 in ipairs(list) do
-		if v2[v3] == nil then
-			v2[v3] = t2[v3] or nilCall
-		end
+function GetBoundingBox(p1, p2) --[[ GetBoundingBox | Line: 14 ]]
+	if type(p1) == "userdata" then
+		p1 = p1:GetDescendants()
 	end
 
-	t3[v.Name] = v2
-end
-
-local function packCat(p1) --[[ packCat | Line: 101 | Upvalues: t3 (copy) ]]
-	local Category = p1.Category
-
-	if Category == nil then
-		return nil
+	if not p2 then
+		p2 = CFrame.new()
 	end
 
-	return t3[Category]
-end
-
-for i, v in ipairs(list) do
-	t[v] = function(p1, p2, p3) --[[ Line: 108 | Upvalues: t3 (copy), v (copy) ]]
-		local Category = p1.Category
-		local v1 = if Category == nil then nil else t3[Category]
-
-		if v1 == nil then
-			return nil
-		end
-
-		return v1[v](p1, p2, p3)
-	end
-end
-
-local Give = t.Give
-
-function t.Give(p1, p2, p3) --[[ Line: 147 | Upvalues: Give (copy) ]]
-	local GiveMsg = p1.GiveMsg
-
-	p1.GiveMsg = nil
-
-	local t = { Give(p1, p2, p3) }
-
-	if not GiveMsg then
-		return unpack(t)
-	end
-
-	require(game.ServerStorage.PlayerTools).Alert(p3, GiveMsg)
-
-	return unpack(t)
-end
-function t.FastGive(p1, p2, p3) --[[ Line: 171 | Upvalues: t3 (copy) ]]
-	local Category = p1.Category
-
-	return (if Category == nil then nil else t3[Category]).Give(p1, p2, p3)
-end
-function t.Run(p1, p2, p3, p4) --[[ Run | Line: 181 | Upvalues: t3 (copy), t (copy) ]]
-	local Category = p2.Category
-	local v1 = if Category == nil then nil else t3[Category]
-
-	if v1 == nil then
-		return nil
-	end
-
-	local v2 = v1[p1]
-
-	if v2 ~= nil then
-		return v2(p2, p3, p4)
-	end
-
-	if p1 == "Purchase" then
-		return t.Purchase(p2, p3, p4)
-	end
-
-	return nil
-end
-function t.Purchase(p1, p2, p3) --[[ Purchase | Line: 200 | Upvalues: t (copy) ]]
-	if p1.Amount and p1.Amount ~= p1.Amount then
-		return false
-	end
-
-	if not t.CanPurchase(p1, p2, p3) then
-		print("Player can\'t purchase")
-
-		return false
-	end
-
-	local v1 = t.GetCost(p1, p2, p3)
-
-	if not v1 then
-		return false
-	end
-
-	if not v1[1] then
-		v1 = { v1 }
-	end
-
-	for i, v in ipairs(v1) do
-		if not t.PlayerHas(v, p2, p3) then
-			return false
-		end
-	end
-
-	if not t.CanGive(p1, p2, p3) then
-		return false
-	end
-
-	for i, v in ipairs(v1) do
-		if v.Category == "Honey" then
-			v.Alert = false
-			v.Logged = false
-		end
-
-		t.Take(v, p2, p3)
-	end
-
-	t.Give(p1, p2, p3)
-	t.PurchaseEffect(p1, p2, p3)
-
-	return true
-end
-function t.Clone(p1) --[[ Clone | Line: 272 ]]
-	local t = {}
+	local v3 = nil
+	local v4 = nil
+	local v5 = nil
+	local v6 = nil
+	local v7 = nil
+	local v8 = nil
 
 	for k, v in pairs(p1) do
+		if v:IsA("BasePart") then
+			if not v3 then
+				v3 = v.Position.X
+				v4 = v.Position.Y
+				v5 = v.Position.Z
+				v6 = v3
+				v7 = v4
+				v8 = v5
+			end
+
+			local v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20 = p2:toObjectSpace(v.CFrame):components()
+			local v21 = math.abs(v12)
+			local v22 = math.abs(v13)
+			local v23 = math.abs(v14)
+			local v24 = math.abs(v15)
+			local v25 = math.abs(v16)
+			local v26 = math.abs(v17)
+			local v27 = math.abs(v18)
+			local v28 = math.abs(v19)
+			local v29 = math.abs(v20)
+			local x = v.Size.x
+			local y = v.Size.y
+			local z = v.Size.z
+			local v30 = v21 * x + v22 * y + v23 * z
+			local v31 = v24 * x + v25 * y + v26 * z
+			local v32 = v27 * x + v28 * y + v29 * z
+			local v33 = v9 - v30
+
+			if v33 < v3 then
+				v3 = v33
+			end
+
+			local v34 = v10 - v31
+
+			if v34 < v4 then
+				v4 = v34
+			end
+
+			local v35 = v11 - v32
+
+			if v35 < v5 then
+				v5 = v35
+			end
+
+			local v36 = v9 + v30
+
+			if v6 < v36 then
+				v6 = v36
+			end
+
+			local v37 = v10 + v31
+
+			if v7 < v37 then
+				v7 = v37
+			end
+
+			local v38 = v11 + v32
+
+			if v8 < v38 then
+				v8 = v38
+			end
+		end
+	end
+
+	if v3 then
+		return p2:toWorldSpace(CFrame.new((v3 + v6) / 2, (v4 + v7) / 2, (v5 + v8) / 2)), Vector3.new(v6 - v3, v7 - v4, v8 - v5)
+	end
+
+	return nil
+end
+
+local t2 = {
+	SetX = function(p1, p2) --[[ Line: 58 | Upvalues: v2 (copy) ]]
+		p1.Icon.Position = UDim2.new(p2 + v2.X, 0, v2.Y, 0)
+	end,
+	DisplayInViewport = function(p1, p2) --[[ Line: 62 | Upvalues: v2 (copy) ]]
+		if p1.ViewportTarget == p2 then
+			return
+		end
+
+		p1.ViewportTarget = p2
+
+		local Viewport = p1.Viewport
+
+		if not Viewport then
+			local ViewportFrame = Instance.new("ViewportFrame")
+
+			ViewportFrame.AnchorPoint = v2
+			ViewportFrame.Size = UDim2.new(1, 0, 1, 0)
+			ViewportFrame.Position = UDim2.new(v2.X, 0, v2.Y, 0)
+			ViewportFrame.BackgroundColor3 = Color3.new(0/255, 0/255, 0/255)
+			ViewportFrame.BorderSizePixel = 0
+			ViewportFrame.BackgroundTransparency = 1
+			ViewportFrame.Parent = p1.Icon
+			p1.Viewport = ViewportFrame
+
+			local Camera = Instance.new("Camera")
+
+			Camera.FieldOfView = 30
+			ViewportFrame.CurrentCamera = Camera
+			Camera.Parent = ViewportFrame
+			Viewport = ViewportFrame
+		end
+
+		local v1 = p2:Clone()
+
+		p1.ViewportDummy = v1
+
+		if v1:IsA("BasePart") then
+			local Model = Instance.new("Model")
+
+			Model.PrimaryPart = v1
+			v1.Parent = Model
+			v1 = Model
+		elseif v1:IsA("Tool") then
+			local Model = Instance.new("Model")
+
+			v1.Parent = Model
+
+			if v1:FindFirstChild("BoundingBox") then
+				Model.PrimaryPart = v1:FindFirstChild("BoundingBox")
+			else
+				Model.PrimaryPart = v1:FindFirstChild("Handle")
+			end
+
+			v1 = Model
+		end
+
+		if not v1:IsA("Model") then
+			local v22 = error
+
+			v22("cannot display type " .. tostring((typeof(v1))) .. " in backpack button viewport")
+		end
+
+		local v4, v5, _, v6, v7, v8, v9, v10, v11, v12
+
+		if not v1.PrimaryPart then
+			error("must set a primary part to all models to use in backpack button viewport")
+		end
+
+		v1:GetPrimaryPartCFrame()
+		v4, v5 = GetBoundingBox(v1)
+		print(p2.Name .. " oSize: " .. tostring(v5))
+		_, v6 = v1:GetBoundingBox()
+		v7 = -(Vector3.new(-1, 0, 2)).Unit
+		v8 = v6.Y
+		v9 = v6.Y
+		v10 = v6.Y
+		v11 = v7 * Vector3.new(v8, v9, v10) * 3.14
+		v12 = CFrame.new(v4.Position + v11, v4.Position)
+		Viewport.CurrentCamera.CFrame = v12
+		v1.Parent = p1.Viewport
+	end
+}
+local t3 = {
+	ArrangeButtons = function(p1) --[[ Line: 169 | Upvalues: v2 (copy) ]]
+		local v1 = #p1.Buttons
+
+		if v1 <= 0 then
+			return
+		end
+
+		local v22 = 1 + p1.StrideX
+		local v4 = v2.X + (v1 + (v1 - 1) * p1.StrideX) * -0.5
+
+		for i, v in ipairs(p1.Buttons) do
+			v:SetX(v4 + v22 * (i - 1))
+		end
+	end,
+	MakeButton = function(p1) --[[ Line: 193 | Upvalues: v2 (copy), t2 (copy) ]]
+		local ImageButton = Instance.new("ImageButton")
+
+		ImageButton.BackgroundTransparency = 0.5
+		ImageButton.BorderSizePixel = 0
+		ImageButton.AnchorPoint = v2
+		ImageButton.Size = UDim2.new(1, 0, 1, 0)
+		ImageButton.Parent = p1.Frame
+
+		local t = {
+			ViewportTarget = nil,
+			ViewportDummy = nil,
+			Viewport = nil,
+			Icon = ImageButton
+		}
+
+		for k, v in pairs(t2) do
+			t[k] = v
+		end
+
+		table.insert(p1.Buttons, t)
+		p1:ArrangeButtons()
+
+		return t
+	end,
+	RemoveButton = function(p1, p2) --[[ Line: 222 ]] end
+}
+
+local function createGui(p1, p2) --[[ createGui | Line: 230 | Upvalues: t3 (copy) ]]
+	if not p2 then
+		p2 = {}
+	end
+
+	local t = {
+		Frame = p1,
+		StrideX = p2.StrixeX or 0.1,
+		Buttons = {}
+	}
+
+	for k, v in pairs(t3) do
 		t[k] = v
 	end
 
 	return t
 end
-function t.GiveArray(p1, p2, p3, p4) --[[ GiveArray | Line: 282 | Upvalues: t (copy) ]]
-	for i, v in ipairs(p1) do
-		local v1 = t.Clone(v)
 
-		if p4 then
-			v1.Alert = true
+function t.Init(p1) --[[ Init | Line: 263 | Upvalues: v1 (ref), createGui (copy) ]]
+	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+
+	local BackpackGui = p1:WaitForChild("BackpackGui")
+
+	require(game.ReplicatedStorage.ScreenInfo).ResizeGui(BackpackGui)
+	v1 = createGui(BackpackGui)
+	task.spawn(function() --[[ Line: 275 | Upvalues: v1 (ref) ]]
+		task.wait()
+
+		local BasicCamBee = game.Workspace.BasicCamBee
+		local t = {}
+
+		for i, v in ipairs(game.ReplicatedStorage.CollectorModels:GetChildren()) do
+			table.insert(t, v)
 		end
 
-		t.Give(v1, p2, p3)
-	end
+		for i = 1, #t do
+			v1:MakeButton():DisplayInViewport(t[(i - 1) % #t + 1])
+		end
+	end)
 end
 
 return t
