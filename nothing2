@@ -1,1220 +1,196 @@
--- Script Path: game:GetService("ReplicatedStorage").HoneycombTools
--- Took 0.66s to decompile.
+-- Script Path: game:GetService("ReplicatedStorage").ItemPackages
+-- Took 0.35s to decompile.
 -- Executor: Velocity (1.1.1)
 
 -- https://lua.expert/
 local t = {}
-local ClientStatCache = require(game.ReplicatedStorage.ClientStatCache)
-local HCCellTypes = require(game.ReplicatedStorage.HCCellTypes)
 
-require(game.ReplicatedStorage.CellTools)
+require(game.ReplicatedStorage.Events)
 
-local Events = require(game.ReplicatedStorage.Events)
-local EggTypes = require(game.ReplicatedStorage.EggTypes)
-
-HCCellTypes:NameToID("Empty")
-
-local IsHiveHub = require(game.ReplicatedFirst.PlaceInfo).IsHiveHub
-
-function t.GetUnlockedCellCount() --[[ GetUnlockedCellCount | Line: 24 ]]
-	return 25
-end
-function t.GetSizeX() --[[ GetSizeX | Line: 28 ]]
-	return 5
-end
-function t.GetSizeY() --[[ GetSizeY | Line: 29 ]]
-	return 10
-end
-function t.GetLocalPlayerHoneycomb() --[[ GetLocalPlayerHoneycomb | Line: 32 ]]
-	local LocalPlayer = game:GetService("Players").LocalPlayer
-
-	if LocalPlayer == nil then
+local isLocalPlayer = game:GetService("Players").LocalPlayer == nil
+local v1 = script:GetChildren()
+local t2 = {
+	CanPurchase = function() --[[ CanPurchase | Line: 75 ]]
+		return true
+	end,
+	PurchaseRequirements = function() --[[ PurchaseRequirements | Line: 76 ]]
+		return nil
+	end,
+	PurchaseExpiration = function() --[[ PurchaseExpiration | Line: 77 ]]
 		return nil
 	end
+}
 
-	local Honeycomb = LocalPlayer:FindFirstChild("Honeycomb")
-
-	if Honeycomb == nil then
-		return nil
-	end
-
-	return Honeycomb.Value
+local function nilCall() --[[ nilCall | Line: 80 ]]
+	return nil
 end
 
-local function cellTag(p1, p2) --[[ cellTag | Line: 46 ]]
-	return "C" .. p1 .. "," .. p2 .. ""
-end
+local list = {
+	"Exists",
+	"PlayerHas",
+	"GetCost",
+	"CanGive",
+	"Give",
+	"Take",
+	"PurchaseRequirements",
+	"PurchaseEffect",
+	"Equippable",
+	"PlayerHasEquipped",
+	"Equip",
+	"Unequip",
+	"Title",
+	"Description",
+	"Icon",
+	"CanPurchase",
+	"PurchaseExpiration",
+	"NumericDescription",
+	"CountAmountPlayerHas"
+}
+local t3 = {}
 
-function t.PartToCellModel(p1, p2) --[[ PartToCellModel | Line: 50 | Upvalues: t (copy) ]]
-	if not p2 then
-		p2 = t.GetLocalPlayerHoneycomb()
-	end
+for i, v in ipairs(v1) do
+	local v2 = require(v)
 
-	if not p2 then
-		return nil
-	end
+	v2.Name = v.Name
 
-	if p1 == nil then
-		return nil
-	end
-
-	local v2 = p1.Parent
-
-	if v2 == nil then
-		return nil
-	end
-
-	local v3 = v2.Parent
-
-	if v3 == nil then
-		return nil
-	end
-
-	if v3 ~= p2.Cells then
-		return nil
-	end
-
-	if v2.CellLocked.Value then
-		return nil
-	end
-
-	return v2
-end
-function t.GetLocalPlayerCell(p1, p2) --[[ GetLocalPlayerCell | Line: 84 | Upvalues: t (copy), ClientStatCache (copy) ]]
-	local v1 = t.GetLocalPlayerHoneycomb()
-
-	if v1 == nil then
-		return nil
-	end
-
-	local v2 = ClientStatCache:Get("Honeycomb")
-
-	game.Workspace:WaitForChild("Bees")
-
-	local v3 = v1.Cells:FindFirstChild("C" .. p1 .. "," .. p2 .. "")
-
-	if v3 == nil then
-		return nil
-	end
-
-	local v4 = v2["x" .. p1]
-
-	if v4 ~= nil then
-		v4 = v4["y" .. p2]
-	end
-
-	return {
-		Body = v3,
-		Type = if v4 then v4.Type .. "Bee" else "Empty",
-		File = v4,
-		X = p1,
-		Y = p2,
-		Locked = v3.CellLocked.Value
-	}
-end
-function t.ForEachLocalCell(p1, p2) --[[ ForEachLocalCell | Line: 120 | Upvalues: t (copy), ClientStatCache (copy) ]]
-	local v1 = t.GetLocalPlayerHoneycomb()
-
-	if v1 == nil then
-		return
-	end
-
-	local v2 = ClientStatCache:Get("Honeycomb")
-
-	if not v2 then
-		return
-	end
-
-	for i = 1, 5 do
-		for j = 1, 10 do
-			local v3 = v1.Cells:FindFirstChild("C" .. i .. "," .. j .. "")
-
-			if v3 == nil then
-				return nil
-			end
-
-			local v4 = v2["x" .. i]
-
-			if v4 ~= nil then
-				v4 = v4["y" .. j]
-			end
-
-			p1({
-				Body = v3,
-				Type = if v4 then v4.Type .. "Bee" else "Empty",
-				File = v4,
-				X = i,
-				Y = j,
-				Locked = v3.CellLocked.Value
-			})
-
-			if p2 and p2.Break then
-				return
-			end
+	for i2, v3 in ipairs(list) do
+		if v2[v3] == nil then
+			v2[v3] = t2[v3] or nilCall
 		end
 	end
+
+	t3[v.Name] = v2
 end
-function t.RevertLocalHiveAppearance() --[[ RevertLocalHiveAppearance | Line: 160 | Upvalues: t (copy), HCCellTypes (copy) ]]
-	t.ForEachLocalCell(function(p1) --[[ Line: 163 | Upvalues: HCCellTypes (ref) ]]
-		if p1.Locked then
-			return
-		end
 
-		local CellType = p1.Body.CellType.Value
+local function packCat(p1) --[[ packCat | Line: 101 | Upvalues: t3 (copy) ]]
+	local Category = p1.Category
 
-		p1.Body.Backplate.Material = "Plastic"
-		p1.Body.Backplate.Transparency = HCCellTypes:GetTransparency(CellType)
-		p1.Body.Backplate.Color = HCCellTypes:GetColor(CellType)
-	end)
-end
-function t.BuildEditor(p1, p2) --[[ BuildEditor | Line: 173 | Upvalues: t (copy), EggTypes (copy), ClientStatCache (copy), HCCellTypes (copy), Events (copy) ]]
-	local v1 = t.GetLocalPlayerHoneycomb()
-	local v2 = EggTypes.Get(p1)
-	local v3 = ClientStatCache:Get("Honeycomb")
-	local Bees = game.Workspace:WaitForChild("Bees")
-
-	local function getStats() --[[ getStats | Line: 189 | Upvalues: ClientStatCache (ref) ]]
-		return ClientStatCache:Get()
+	if Category == nil then
+		return nil
 	end
 
-	local function getCell(p1, p2) --[[ getCell | Line: 196 | Upvalues: v1 (copy), v3 (copy) ]]
-		local v12 = v1.Cells:FindFirstChild("C" .. p1 .. "," .. p2 .. "")
+	return t3[Category]
+end
 
-		if v12 == nil then
+for i, v in ipairs(list) do
+	t[v] = function(p1, p2, p3) --[[ Line: 108 | Upvalues: t3 (copy), v (copy) ]]
+		local Category = p1.Category
+		local v1 = if Category == nil then nil else t3[Category]
+
+		if v1 == nil then
 			return nil
 		end
 
-		local v2 = v3["x" .. p1]
-
-		if v2 ~= nil then
-			v2 = v2["y" .. p2]
-		end
-
-		return {
-			Body = v12,
-			Type = if v2 then v2.Type .. "Bee" else "Empty",
-			X = p1,
-			Y = p2,
-			Locked = v12.CellLocked.Value
-		}
-	end
-
-	local function getNeighbors(p1, p2) --[[ getNeighbors | Line: 217 | Upvalues: getCell (copy) ]]
-		local t = {}
-
-		local function pushNeighbor(p12, p22) --[[ pushNeighbor | Line: 220 | Upvalues: p1 (copy), p2 (copy), getCell (ref), t (copy) ]]
-			local v1 = getCell(p1 + p12, p2 + p22)
-
-			if v1 == nil then
-				return
-			end
-
-			table.insert(t, v1)
-		end
-
-		local v1 = getCell(p1 + 0, p2 + 1)
-
-		if v1 ~= nil then
-			table.insert(t, v1)
-		end
-
-		local v2 = getCell(p1 + 0, p2 + -1)
-
-		if v2 ~= nil then
-			table.insert(t, v2)
-		end
-
-		local v3 = getCell(p1 + -1, p2 + 0)
-
-		if v3 ~= nil then
-			table.insert(t, v3)
-		end
-
-		local v4 = getCell(p1 + 1, p2 + 0)
-
-		if v4 ~= nil then
-			table.insert(t, v4)
-		end
-
-		local v5 = if (p1 - 1) % 2 == 1 then 1 else -1
-		local v6 = getCell(p1 + -1, p2 + v5)
-
-		if v6 ~= nil then
-			table.insert(t, v6)
-		end
-
-		local v7 = getCell(p1 + 1, p2 + v5)
-
-		if v7 ~= nil then
-			table.insert(t, v7)
-		end
-
-		return t
-	end
-
-	local function cellIsRooted(p1, p2) --[[ cellIsRooted | Line: 243 | Upvalues: getNeighbors (copy) ]]
-		if p2 == 1 then
-			return true
-		end
-
-		for i, v in ipairs((getNeighbors(p1, p2))) do
-			if v.Type ~= "Empty" then
-				return true
-			end
-		end
-
-		return false
-	end
-
-	local v4
-
-	if v2.Transform or v2.TreatValue then
-		v4 = function(p1, p2, p3) --[[ Line: 256 | Upvalues: v2 (copy) ]]
-			if v2.ValidBees then
-				for i, v in ipairs(v2.ValidBees) do
-					if v .. "Bee" == p1 then
-						return true
-					end
-				end
-
-				return false
-			end
-
-			return p1 ~= "Empty"
-		end
-	elseif v2.WaxEffect then
-		local BeeStats = require(game.ReplicatedStorage.BeeStats)
-
-		v4 = function(p1, p2, p3) --[[ Line: 279 | Upvalues: v3 (copy), BeeStats (copy) ]]
-			if p1 == "Empty" then
-				return false
-			end
-
-			return BeeStats.GetBeequip((require(game.ReplicatedStorage.HoneycombFileTools).GetBeeFile(v3, p2, p3))) ~= nil
-		end
-	else
-		v4 = if v2.TrueEgg then function(p1, p2, p3) --[[ Line: 302 | Upvalues: getNeighbors (copy) ]]
-			local v1
-
-			if p1 == "Empty" then
-				if p3 == 1 then
-					v1 = true
-					else
-					v1 = false
-
-					for i, v in ipairs((getNeighbors(p2, p3))) do
-						if v.Type ~= "Empty" then
-							v1 = true
-
-							break
-						end
-					end
-				end
-
-				if not v1 then
-					v1 = p1 ~= "Empty"
-				end
-			else
-				v1 = p1 ~= "Empty"
-			end
-
-			return v1
-		end else function(p1, p2, p3) --[[ Line: 307 | Upvalues: getNeighbors (copy) ]]
-		if p1 == "Empty" then
-			if p3 == 1 then
-				return true
-			end
-
-			for i, v in ipairs((getNeighbors(p2, p3))) do
-				if v.Type ~= "Empty" then
-					return true
-				end
-			end
-		end
-
-		return false
+		return v1[v](p1, p2, p3)
 	end
 end
 
-if v2.RestrictedBeeTypes then
-	local v5 = v4
+local Give = t.Give
 
-	v4 = function(p1, p2, p3) --[[ Line: 314 | Upvalues: v5 (copy), v2 (copy), v3 (copy) ]]
-		if not v5(p1, p2, p3) then
-			return false
-		end
+function t.Give(p1, p2, p3) --[[ Line: 147 | Upvalues: Give (copy) ]]
+	local GiveMsg = p1.GiveMsg
 
-		for i, v in ipairs(v2.RestrictedBeeTypes) do
-			if p1 == v .. "Bee" then
-				if not v2.RestrictOnlyIfGifted then
-					return false
-				end
+	p1.GiveMsg = nil
 
-				local v1 = v3["x" .. p2]["y" .. p3]
+	local t = { Give(p1, p2, p3) }
 
-				if v1.Traits then
-					for i2, v4 in ipairs(v1.Traits) do
-						if v4 == "Gifted" then
-							return false
-						end
-					end
-				end
-			end
-		end
-
-		return true
+	if not GiveMsg then
+		return unpack(t)
 	end
+
+	require(game.ServerStorage.PlayerTools).Alert(p3, GiveMsg)
+
+	return unpack(t)
 end
+function t.FastGive(p1, p2, p3) --[[ Line: 171 | Upvalues: t3 (copy) ]]
+	local Category = p1.Category
 
-local t2 = {
-	DragStartTime = 0
-}
-local v6 = nil
-local v7 = nil
-local v8 = nil
-local v9 = nil
-local v10 = true
-
-local function uncolorTargetCell() --[[ uncolorTargetCell | Line: 368 | Upvalues: v6 (ref), v8 (ref), v9 (ref) ]]
-	if v6 then
-		v6.Body.Backplate.Transparency = v8
-		v6.Body.Backplate.Color = v9
-	end
+	return (if Category == nil then nil else t3[Category]).Give(p1, p2, p3)
 end
-
-function t2.EggDragStart(p1) --[[ EggDragStart | Line: 378 | Upvalues: t2 (copy), v2 (copy), v1 (copy), getCell (copy), v4 (ref) ]]
-	t2.DragStartTime = os.clock()
-
-	if v2.PlayerActive then
-		local v12 = require(game.ReplicatedStorage.Gui.PlayerActivesGui).GetActive()
-
-		if not v12 then
-			return
-		end
-
-		v12:Highlight()
-	else
-		if v2.Unhatchable then
-			return
-		end
-
-		if v1 == nil then
-			return
-		end
-
-		for i = 1, 5 do
-			for j = 1, 10 do
-				local v22 = getCell(i, j)
-
-				if not v22.Locked and v4(v22.Type, i, j) then
-					v22.Body.Backplate.Transparency = 0
-					v22.Body.Backplate.Material = "Neon"
-					v22.Body.Backplate.Color = BrickColor.Green().Color
-				end
-			end
-		end
-	end
-end
-
-local PAGuiGrid = require(game.ReplicatedStorage.Gui.PlayerActivesGui.PAGuiGrid)
-
-function t2.EggDragUpdate() --[[ EggDragUpdate | Line: 446 | Upvalues: p2 (copy), v10 (ref), PAGuiGrid (copy), v2 (copy), v7 (ref), v6 (ref), v8 (ref), v9 (ref), v1 (copy), Bees (copy), t (ref), v4 (ref) ]]
-	local v12 = game:GetService("Players").LocalPlayer:GetMouse()
-
-	if v12 == nil then
-		return
-	end
-
-	local X = v12.X
-	local Y = v12.Y
-	local AbsolutePosition = p2.AbsolutePosition
-	local v22 = AbsolutePosition + p2.AbsoluteSize
-
-	v10 = if AbsolutePosition.X < X and (X < v22.X and AbsolutePosition.Y < Y) then Y < v22.Y else false
-
-	local v42 = PAGuiGrid.GetActive()
-
-	if v42 then
-		local v5 = v42:CheckDepositSlot(v2.PlayerActive, v12.X, v12.Y)
-		local _, _2, _3, _4 = v42:GetBoundingBox()
-
-		if v5 then
-			v7 = v5
-
-			if not v6 then
-				v6 = nil
-
-				return
-			end
-
-			v6.Body.Backplate.Transparency = v8
-			v6.Body.Backplate.Color = v9
-			v6 = nil
-
-			return
-		end
-	end
-
-	v7 = nil
+function t.Run(p1, p2, p3, p4) --[[ Run | Line: 181 | Upvalues: t3 (copy), t (copy) ]]
+	local Category = p2.Category
+	local v1 = if Category == nil then nil else t3[Category]
 
 	if v1 == nil then
-		return
-	end
-
-	v12.TargetFilter = Bees
-
-	local v62 = t.PartToCellModel(v12.Target, v1)
-
-	if v6 ~= nil and (v62 ~= v6.Body and v6) then
-		v6.Body.Backplate.Transparency = v8
-		v6.Body.Backplate.Color = v9
-	end
-
-	local v72 = v62
-
-	if v72 == nil then
-		v6 = nil
-	else
-		if v6 ~= nil and v6.Body == v72 then
-			return
-		end
-
-		v8 = v72.Backplate.Transparency
-		v9 = v72.Backplate.Color
-
-		local CellX = v72.CellX.Value
-		local CellY = v72.CellY.Value
-		local CellType = v72.CellType.Value
-		local v82 = false
-
-		if v4(CellType, CellX, CellY) then
-			v72.Backplate.Color = BrickColor.White().Color
-			v82 = true
-		else
-			v72.Backplate.Color = BrickColor.Red().Color
-		end
-
-		v72.Backplate.Transparency = 0
-		v6 = {
-			Body = v72,
-			Type = CellType,
-			X = CellX,
-			Y = CellY,
-			Eligable = v82
-		}
-	end
-end
-function t2.ConstructCell(p1, p2, p3, p4) --[[ ConstructCell | Line: 547 | Upvalues: EggTypes (ref), ClientStatCache (ref), HCCellTypes (ref), Events (ref), v3 (copy), t (ref) ]]
-	local v1 = EggTypes.Get(p1)
-
-	if not v1 then
 		return nil
 	end
 
-	local v2 = ClientStatCache:Get()
-	local v32 = v2.Eggs[p1] or 0
-	local v4 = false
-	local v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28
+	local v2 = v1[p1]
 
-	if v1.TreatValue then
-		local v29 = HCCellTypes:GetBeeType(p4.Type)
-
-		if v1.AlwaysUse1 or v32 == 1 then
-			v5 = if require(game.ReplicatedStorage.Gui.QuestionBox).Ask("Give " .. v1.DisplayName .. " to " .. v29 .. " Bee?") then 1 else 0
-		else
-			local v31 = "How many " .. v1.PluralDisplayName .. " will you feed to " .. v29 .. " Bee?"
-			local v322 = nil
-			local v33 = nil
-			local v34, v35 = Events.ClientCall("GetBondToLevel", p2, p3)
-			local v36 = not v34 or (if v34 <= 0 then true else false)
-			local v37 = false
-			local TreatValue = v1.TreatValue
-			local v38 = require(game.ReplicatedStorage.BeeTypes):Get(v29)
-
-			if v38 and (v38.Tastes and (v38.Tastes.Treats and v38.Tastes.Treats.Likes)) then
-				for i, v in ipairs(v38.Tastes.Treats.Likes) do
-					if v == p1 then
-						v37 = true
-
-						break
-					end
-				end
-			end
-
-			local v39 = if v37 or not (v1.TraitRates and (v1.TraitRates.Gifted and v1.TraitRates.Gifted < 1)) then v37 else true
-
-			if v39 then
-				local v40 = require(game.ReplicatedStorage.HoneycombFileTools).GetBeeFile(v3, p2, p3)
-
-				if require(game.ReplicatedStorage.BeeStats).HasTrait(v40, "Gifted") then
-					v39 = false
-				end
-			end
-
-			if not v36 then
-				local TreatValue2 = v1.TreatValue
-
-				if v37 then
-					TreatValue2 = TreatValue2 * 2
-				end
-
-				local v41 = math.ceil(v34 / (TreatValue2 * v35))
-
-				if v32 < v41 then
-					v36 = true
-					v322 = v41
-				else
-					v322 = v41
-					v33 = "  Lvl Up (" .. v41 .. ")  "
-				end
-			end
-
-			local v42, v43, v44
-
-			if v36 then
-				v322 = v32
-				v33 = "  All (" .. v32 .. ")  "
-			else
-				repeat
-					v42, v43 = require(game.ReplicatedStorage.Gui.QuantityBox).Ask(v31, v322, v33, v39, v32)
-
-					if not v43 then
-						v5 = v42
-						v4 = v43
-
-						if not v5 then
-							v5 = 0
-						end
-
-						if v5 <= 0 then
-							return v32, false
-						end
-
-						if v1.WaxEffect then
-							v5 = 0
-							v6 = t.GetLocalPlayerCell(p2, p3)
-
-							if v6 and v6.File then
-								v7 = require(game.ReplicatedStorage.BeeStats).GetBeequip(v6.File)
-
-								if v7 then
-									v8 = require(game.ReplicatedStorage.Beequips.BeequipFile)
-									setmetatable(v7, v8)
-									v9 = v7:GetTypeDef()
-
-									if v9 then
-										v10 = v1.DisplayName
-										v11 = v6.File.Type
-										v12 = tostring(v11)
-										v13 = v9.DisplayName
-										v14 = "Use the " .. v10 .. " on " .. v12 .. " Bee\'s " .. tostring(v13) .. "?"
-										v5 = if require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v14) then 1 else 0
-									end
-								end
-							end
-						end
-
-						v15 = nil
-
-						if v1.TrueEgg or v1.Transform then
-							v16 = require(game.ReplicatedStorage.StatTools)
-							v17 = "Hatch " .. v1.DisplayName .. "?"
-
-							if p4.Type then
-								v18 = HCCellTypes:GetBeeType(p4.Type)
-
-								if v18 then
-									v19 = if v1.CellType == "Empty" then "Remove " else "Transform "
-									v17 = v19 .. v18 .. " Bee?"
-								end
-							end
-
-							v20 = false
-							v21 = v1.AutoJelly and (v16.GetSetting(v2, "RollToLegendary") or v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMythic") or v16.GetSetting(v2, "RollToMutation"))
-
-							if v21 then
-								if v16.GetSetting(v2, "RollToMythic") and (v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMutation")) then
-									v20 = true
-								end
-
-								v17 = v17 .. " (Auto-Jelly is ON)"
-							end
-
-							if not require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v17) then
-								return v32, false
-							end
-
-							if v16.CheckIfRoboBearChallengeIsActive(v2) and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143 Hatching or transforming a bee will end your Robo Bear Challenge. Continue?\226\154\160\239\184\143", true) then
-								return v32, false
-							end
-
-							v22 = if v1.Name == "StarJelly" then true else false
-
-							if v21 and (v22 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143You are about to Auto-Jelly using Star Jellies. Continue?\226\154\160\239\184\143", true)) then
-								return v32, false
-							end
-
-							if v20 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143The Auto-Jelly settings you have selected are extremely rare. Continue?\226\154\160\239\184\143", true) then
-								return v32, false
-							end
-
-							if v1.RarityChoice and v1.RarityChoice == "Mythic" then
-								v23 = require(game.ReplicatedStorage.Gui.ChooseAMythicGui).Open()
-								v15 = v23
-							end
-						end
-
-						v24, v25, v26, v27, v28 = Events.ClientCall("ConstructHiveCellFromEgg", p2, p3, p1, v5, v4, v15)
-
-						if v25 then
-							ClientStatCache:Set({ "Eggs", p1 }, v24)
-							ClientStatCache:Set("DiscoveredBees", v27)
-							ClientStatCache:Set("Honeycomb", v26)
-							ClientStatCache:Set({ "Totals", "EggUses" }, v28)
-							require(game.ReplicatedStorage.GateManager).UpdateGateColors()
-						end
-
-						return v24, v25
-					end
-
-					if v42 == 1 then
-						v44 = "\226\154\160\239\184\143 Feeding until gifted is not guaranteed to work and may use ALL your treats. Continue? \226\154\160\239\184\143"
-						v5 = v42
-
-						continue
-					end
-
-					v44 = "\226\154\160\239\184\143 Feeding until gifted is not guaranteed to work and may use all " .. require(game.ReplicatedStorage.NumberCommas)(v42) .. " treats. Continue? \226\154\160\239\184\143"
-					v5 = v42
-				until require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v44, true)
-
-				v4 = v43
-
-				if not v5 then
-					v5 = 0
-				end
-
-				if v5 <= 0 then
-					return v32, false
-				end
-
-				if v1.WaxEffect then
-					v5 = 0
-					v6 = t.GetLocalPlayerCell(p2, p3)
-
-					if v6 and v6.File then
-						v7 = require(game.ReplicatedStorage.BeeStats).GetBeequip(v6.File)
-
-						if v7 then
-							v8 = require(game.ReplicatedStorage.Beequips.BeequipFile)
-							setmetatable(v7, v8)
-							v9 = v7:GetTypeDef()
-
-							if v9 then
-								v10 = v1.DisplayName
-								v11 = v6.File.Type
-								v12 = tostring(v11)
-								v13 = v9.DisplayName
-								v14 = "Use the " .. v10 .. " on " .. v12 .. " Bee\'s " .. tostring(v13) .. "?"
-								v5 = if require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v14) then 1 else 0
-							end
-						end
-					end
-				end
-
-				v15 = nil
-
-				if v1.TrueEgg or v1.Transform then
-					v16 = require(game.ReplicatedStorage.StatTools)
-					v17 = "Hatch " .. v1.DisplayName .. "?"
-
-					if p4.Type then
-						v18 = HCCellTypes:GetBeeType(p4.Type)
-
-						if v18 then
-							v19 = if v1.CellType == "Empty" then "Remove " else "Transform "
-							v17 = v19 .. v18 .. " Bee?"
-						end
-					end
-
-					v20 = false
-					v21 = v1.AutoJelly and (v16.GetSetting(v2, "RollToLegendary") or v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMythic") or v16.GetSetting(v2, "RollToMutation"))
-
-					if v21 then
-						if v16.GetSetting(v2, "RollToMythic") and (v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMutation")) then
-							v20 = true
-						end
-
-						v17 = v17 .. " (Auto-Jelly is ON)"
-					end
-
-					if not require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v17) then
-						return v32, false
-					end
-
-					if v16.CheckIfRoboBearChallengeIsActive(v2) and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143 Hatching or transforming a bee will end your Robo Bear Challenge. Continue?\226\154\160\239\184\143", true) then
-						return v32, false
-					end
-
-					v22 = if v1.Name == "StarJelly" then true else false
-
-					if v21 and (v22 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143You are about to Auto-Jelly using Star Jellies. Continue?\226\154\160\239\184\143", true)) then
-						return v32, false
-					end
-
-					if v20 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143The Auto-Jelly settings you have selected are extremely rare. Continue?\226\154\160\239\184\143", true) then
-						return v32, false
-					end
-
-					if v1.RarityChoice and v1.RarityChoice == "Mythic" then
-						v23 = require(game.ReplicatedStorage.Gui.ChooseAMythicGui).Open()
-						v15 = v23
-					end
-				end
-
-				v24, v25, v26, v27, v28 = Events.ClientCall("ConstructHiveCellFromEgg", p2, p3, p1, v5, v43, v15)
-
-				if v25 then
-					ClientStatCache:Set({ "Eggs", p1 }, v24)
-					ClientStatCache:Set("DiscoveredBees", v27)
-					ClientStatCache:Set("Honeycomb", v26)
-					ClientStatCache:Set({ "Totals", "EggUses" }, v28)
-					require(game.ReplicatedStorage.GateManager).UpdateGateColors()
-				end
-
-				return v24, v25
-			end
-
-			repeat
-				v42, v43 = require(game.ReplicatedStorage.Gui.QuantityBox).Ask(v31, v322, v33, v39, v32)
-
-				if not v43 then
-					v5 = v42
-					v4 = v43
-
-					if not v5 then
-						v5 = 0
-					end
-
-					if v5 <= 0 then
-						return v32, false
-					end
-
-					if v1.WaxEffect then
-						v5 = 0
-						v6 = t.GetLocalPlayerCell(p2, p3)
-
-						if v6 and v6.File then
-							v7 = require(game.ReplicatedStorage.BeeStats).GetBeequip(v6.File)
-
-							if v7 then
-								v8 = require(game.ReplicatedStorage.Beequips.BeequipFile)
-								setmetatable(v7, v8)
-								v9 = v7:GetTypeDef()
-
-								if v9 then
-									v10 = v1.DisplayName
-									v11 = v6.File.Type
-									v12 = tostring(v11)
-									v13 = v9.DisplayName
-									v14 = "Use the " .. v10 .. " on " .. v12 .. " Bee\'s " .. tostring(v13) .. "?"
-									v5 = if require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v14) then 1 else 0
-								end
-							end
-						end
-					end
-
-					v15 = nil
-
-					if v1.TrueEgg or v1.Transform then
-						v16 = require(game.ReplicatedStorage.StatTools)
-						v17 = "Hatch " .. v1.DisplayName .. "?"
-
-						if p4.Type then
-							v18 = HCCellTypes:GetBeeType(p4.Type)
-
-							if v18 then
-								v19 = if v1.CellType == "Empty" then "Remove " else "Transform "
-								v17 = v19 .. v18 .. " Bee?"
-							end
-						end
-
-						v20 = false
-						v21 = v1.AutoJelly and (v16.GetSetting(v2, "RollToLegendary") or v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMythic") or v16.GetSetting(v2, "RollToMutation"))
-
-						if v21 then
-							if v16.GetSetting(v2, "RollToMythic") and (v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMutation")) then
-								v20 = true
-							end
-
-							v17 = v17 .. " (Auto-Jelly is ON)"
-						end
-
-						if not require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v17) then
-							return v32, false
-						end
-
-						if v16.CheckIfRoboBearChallengeIsActive(v2) and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143 Hatching or transforming a bee will end your Robo Bear Challenge. Continue?\226\154\160\239\184\143", true) then
-							return v32, false
-						end
-
-						v22 = if v1.Name == "StarJelly" then true else false
-
-						if v21 and (v22 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143You are about to Auto-Jelly using Star Jellies. Continue?\226\154\160\239\184\143", true)) then
-							return v32, false
-						end
-
-						if v20 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143The Auto-Jelly settings you have selected are extremely rare. Continue?\226\154\160\239\184\143", true) then
-							return v32, false
-						end
-
-						if v1.RarityChoice and v1.RarityChoice == "Mythic" then
-							v23 = require(game.ReplicatedStorage.Gui.ChooseAMythicGui).Open()
-							v15 = v23
-						end
-					end
-
-					v24, v25, v26, v27, v28 = Events.ClientCall("ConstructHiveCellFromEgg", p2, p3, p1, v5, v4, v15)
-
-					if v25 then
-						ClientStatCache:Set({ "Eggs", p1 }, v24)
-						ClientStatCache:Set("DiscoveredBees", v27)
-						ClientStatCache:Set("Honeycomb", v26)
-						ClientStatCache:Set({ "Totals", "EggUses" }, v28)
-						require(game.ReplicatedStorage.GateManager).UpdateGateColors()
-					end
-
-					return v24, v25
-				end
-
-				if v42 == 1 then
-					v44 = "\226\154\160\239\184\143 Feeding until gifted is not guaranteed to work and may use ALL your treats. Continue? \226\154\160\239\184\143"
-					v5 = v42
-
-					continue
-				end
-
-				v44 = "\226\154\160\239\184\143 Feeding until gifted is not guaranteed to work and may use all " .. require(game.ReplicatedStorage.NumberCommas)(v42) .. " treats. Continue? \226\154\160\239\184\143"
-				v5 = v42
-			until require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v44, true)
-
-			v4 = v43
-
-			if not v5 then
-				v5 = 0
-			end
-		end
-
-		if v5 <= 0 then
-			return v32, false
-		end
-	else
-		v5 = 1
+	if v2 ~= nil then
+		return v2(p2, p3, p4)
 	end
 
-	if v1.WaxEffect then
-		v5 = 0
-		v6 = t.GetLocalPlayerCell(p2, p3)
-
-		if v6 and v6.File then
-			v7 = require(game.ReplicatedStorage.BeeStats).GetBeequip(v6.File)
-
-			if v7 then
-				v8 = require(game.ReplicatedStorage.Beequips.BeequipFile)
-				setmetatable(v7, v8)
-				v9 = v7:GetTypeDef()
-
-				if v9 then
-					v10 = v1.DisplayName
-					v11 = v6.File.Type
-					v12 = tostring(v11)
-					v13 = v9.DisplayName
-					v14 = "Use the " .. v10 .. " on " .. v12 .. " Bee\'s " .. tostring(v13) .. "?"
-					v5 = if require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v14) then 1 else 0
-				end
-			end
-		end
-	end
-
-	if v1.TrueEgg or v1.Transform then
-		v16 = require(game.ReplicatedStorage.StatTools)
-		v17 = "Hatch " .. v1.DisplayName .. "?"
-
-		if p4.Type then
-			v18 = HCCellTypes:GetBeeType(p4.Type)
-
-			if v18 then
-				v19 = if v1.CellType == "Empty" then "Remove " else "Transform "
-				v17 = v19 .. v18 .. " Bee?"
-			end
-		end
-
-		v20 = false
-		v21 = v1.AutoJelly and (v16.GetSetting(v2, "RollToLegendary") or v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMythic") or v16.GetSetting(v2, "RollToMutation"))
-
-		if v21 then
-			if v16.GetSetting(v2, "RollToMythic") and (v16.GetSetting(v2, "RollToGifted") or v16.GetSetting(v2, "RollToMutation")) then
-				v20 = true
-			end
-
-			v17 = v17 .. " (Auto-Jelly is ON)"
-		end
-
-		if not require(game.ReplicatedStorage.Gui.QuestionBox).Ask(v17) then
-			return v32, false
-		end
-
-		if v16.CheckIfRoboBearChallengeIsActive(v2) and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143 Hatching or transforming a bee will end your Robo Bear Challenge. Continue?\226\154\160\239\184\143", true) then
-			return v32, false
-		end
-
-		v22 = if v1.Name == "StarJelly" then true else false
-
-		if v21 and (v22 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143You are about to Auto-Jelly using Star Jellies. Continue?\226\154\160\239\184\143", true)) then
-			return v32, false
-		end
-
-		if v20 and not require(game.ReplicatedStorage.Gui.QuestionBox).Ask("\226\154\160\239\184\143The Auto-Jelly settings you have selected are extremely rare. Continue?\226\154\160\239\184\143", true) then
-			return v32, false
-		end
-
-		if v1.RarityChoice and v1.RarityChoice == "Mythic" then
-			v23 = require(game.ReplicatedStorage.Gui.ChooseAMythicGui).Open()
-			v15 = v23
-		end
-	end
-
-	v24, v25, v26, v27, v28 = Events.ClientCall("ConstructHiveCellFromEgg", p2, p3, p1, v5, v4, v15)
-
-	if v25 then
-		ClientStatCache:Set({ "Eggs", p1 }, v24)
-		ClientStatCache:Set("DiscoveredBees", v27)
-		ClientStatCache:Set("Honeycomb", v26)
-		ClientStatCache:Set({ "Totals", "EggUses" }, v28)
-		require(game.ReplicatedStorage.GateManager).UpdateGateColors()
-	end
-
-	return v24, v25
-end
-function t2.EggDragEnd(p1) --[[ EggDragEnd | Line: 863 | Upvalues: t2 (copy), EggTypes (ref), PAGuiGrid (copy), v7 (ref), v10 (ref), v1 (copy), getCell (copy), HCCellTypes (ref), v6 (ref) ]]
-	t2.EggDragUpdate()
-
-	local v12 = EggTypes.Get(p1)
-
-	if not v12 then
-		return
-	end
-
-	local v2 = PAGuiGrid.GetActive()
-
-	v2:Unhighlight()
-
-	if v7 then
-		if not v12.PlayerActive then
-			v7 = nil
-
-			return
-		end
-
-		if not v2 then
-			return
-		end
-
-		v2:AddPlayerActive(v12.PlayerActive, v7)
-		v2:ClientSave()
-		v7 = nil
-
-		return
-	end
-
-	if v12.Usable then
-		local v3 = false
-		local v4 = false
-
-		if v10 then
-			if os.clock() - t2.DragStartTime < 0.2 then
-				v3 = true
-				v4 = true
-			end
-		else
-			v4 = v12.CarefulUsage
-			v3 = true
-		end
-
-		if v12.BannedPlaceTypes then
-			local PlaceType = require(game.ReplicatedFirst.PlaceInfo).PlaceType
-
-			if v12.BannedPlaceTypes[PlaceType] then
-				v3 = false
-
-				local v5 = "Cannot use " .. v12.DisplayName .. " in "
-
-				require(game.ReplicatedStorage.AlertBoxes):Push(if PlaceType == "HiveHub" then v5 .. "the Hive Hub" else v5 .. "this challenge", nil, "Red")
-			end
-		end
-
-		if v3 then
-			if v4 then
-				local QuestionBox = require(game.ReplicatedStorage.Gui.QuestionBox)
-				local v72 = v12.UseAction or "Use"
-
-				v3 = if type(v72) == "function" then QuestionBox.Ask((v72())) else QuestionBox.Ask(v72 .. " " .. v12.DisplayName .. "?")
-			end
-
-			if v3 then
-				v12.PlayerActive:ClientActivate()
-			end
-		end
-	end
-
-	if v1 == nil then
-		return nil, false
-	end
-
-	for i = 1, 5 do
-		for j = 1, 10 do
-			local v11 = getCell(i, j)
-
-			if not v11.Locked then
-				local CellType = v11.Body.CellType.Value
-
-				v11.Body.Backplate.Material = "Plastic"
-				v11.Body.Backplate.Transparency = HCCellTypes:GetTransparency(CellType)
-				v11.Body.Backplate.Color = HCCellTypes:GetColor(CellType)
-			end
-		end
-	end
-
-	local v122 = false
-
-	if v6 == nil or not v6.Eligable then
-		return nil, v122
-	end
-
-	local v13, v14 = t2.ConstructCell(p1, v6.X, v6.Y, v6)
-
-	return v13, v14
-end
-
-return t2
-end
-function t.BuildBeequipEquipEditor(p1) --[[ BuildBeequipEquipEditor | Line: 1072 | Upvalues: t (copy), Events (copy) ]]
-	local v1 = p1:GetTypeDef()
-	local v2 = t.GetLocalPlayerHoneycomb()
-
-	if v2 then
-		local Bees = game.Workspace:WaitForChild("Bees")
-		local t2 = {
-			Active = true,
-			DragStartTime = 0
-		}
-		local v3 = nil
-		local v4 = nil
-		local v5 = nil
-
-		local function uncolorTargetCell() --[[ uncolorTargetCell | Line: 1096 | Upvalues: v3 (ref), v4 (ref), v5 (ref) ]]
-			if v3 then
-				v3.Body.Backplate.Transparency = v4
-				v3.Body.Backplate.Color = v5
-			end
-		end
-
-		function t2.DragStart(p1) --[[ DragStart | Line: 1104 | Upvalues: t2 (copy), t (ref), v1 (copy) ]]
-			if t2.Active then
-				t2.DragStartTime = os.clock()
-				t.ForEachLocalCell(function(p1) --[[ Line: 1111 | Upvalues: v1 (ref) ]]
-					if v1:CheckReqs(p1.File) then
-						p1.Body.Backplate.Transparency = 0
-						p1.Body.Backplate.Material = "Neon"
-						p1.Body.Backplate.Color = BrickColor.Green().Color
-
-						return
-					end
-
-					if not p1.File then
-						return
-					end
-
-					p1.Body.Backplate.Transparency = 0
-					p1.Body.Backplate.Material = "Neon"
-					p1.Body.Backplate.Color = Color3.fromRGB(161, 18, 20)
-				end)
-			end
-		end
-		function t2.DragUpdate() --[[ DragUpdate | Line: 1130 | Upvalues: t2 (copy), Bees (copy), t (ref), v2 (copy), v3 (ref), v4 (ref), v5 (ref), v1 (copy) ]]
-			if not t2.Active then
-				return
-			end
-
-			local v12 = game:GetService("Players").LocalPlayer:GetMouse()
-
-			if v12 == nil then
-				return
-			end
-
-			v12.TargetFilter = Bees
-
-			local v22 = t.PartToCellModel(v12.Target, v2)
-
-			if v3 ~= nil and (v22 ~= v3.Body and v3) then
-				v3.Body.Backplate.Transparency = v4
-				v3.Body.Backplate.Color = v5
-			end
-
-			local v32 = v22
-
-			if v32 == nil then
-				v3 = nil
-			else
-				if v3 ~= nil and v3.Body == v32 then
-					return
-				end
-
-				v4 = v32.Backplate.Transparency
-				v5 = v32.Backplate.Color
-
-				local v42 = t.GetLocalPlayerCell(v32.CellX.Value, v32.CellY.Value)
-
-				if v1:CheckReqs(v42.File) then
-					v32.Backplate.Color = BrickColor.White().Color
-					v42.Eligable = true
-				else
-					v32.Backplate.Color = BrickColor.Red().Color
-					v42.Eligable = false
-				end
-
-				v32.Backplate.Transparency = 0
-				v3 = v42
-			end
-		end
-		function t2.DragEnd() --[[ DragEnd | Line: 1201 | Upvalues: t2 (copy), t (ref), v3 (ref), Events (ref), p1 (copy) ]]
-			if not t2.Active then
-				return
-			end
-
-			t2.DragUpdate()
-			t2.Active = false
-			t.RevertLocalHiveAppearance()
-
-			if v3 and v3.Eligable then
-				require(game.ReplicatedStorage.Beequips)
-
-				local v1, v2 = Events.ClientCall("BeequipEvent", "Equip", {
-					BeequipIDs = p1.IDs,
-					X = v3.X,
-					Y = v3.Y
-				})
-
-				return v1, v2
-			end
-
-			return false
-		end
-
-		return t2
+	if p1 == "Purchase" then
+		return t.Purchase(p2, p3, p4)
 	end
 
 	return nil
+end
+function t.Purchase(p1, p2, p3) --[[ Purchase | Line: 200 | Upvalues: t (copy) ]]
+	if p1.Amount and p1.Amount ~= p1.Amount then
+		return false
+	end
+
+	if not t.CanPurchase(p1, p2, p3) then
+		print("Player can\'t purchase")
+
+		return false
+	end
+
+	local v1 = t.GetCost(p1, p2, p3)
+
+	if not v1 then
+		return false
+	end
+
+	if not v1[1] then
+		v1 = { v1 }
+	end
+
+	for i, v in ipairs(v1) do
+		if not t.PlayerHas(v, p2, p3) then
+			return false
+		end
+	end
+
+	if not t.CanGive(p1, p2, p3) then
+		return false
+	end
+
+	for i, v in ipairs(v1) do
+		if v.Category == "Honey" then
+			v.Alert = false
+			v.Logged = false
+		end
+
+		t.Take(v, p2, p3)
+	end
+
+	t.Give(p1, p2, p3)
+	t.PurchaseEffect(p1, p2, p3)
+
+	return true
+end
+function t.Clone(p1) --[[ Clone | Line: 272 ]]
+	local t = {}
+
+	for k, v in pairs(p1) do
+		t[k] = v
+	end
+
+	return t
+end
+function t.GiveArray(p1, p2, p3, p4) --[[ GiveArray | Line: 282 | Upvalues: t (copy) ]]
+	for i, v in ipairs(p1) do
+		local v1 = t.Clone(v)
+
+		if p4 then
+			v1.Alert = true
+		end
+
+		t.Give(v1, p2, p3)
+	end
 end
 
 return t
