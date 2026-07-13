@@ -1,0 +1,1454 @@
+-- Script Path: game:GetService("ReplicatedStorage").StatModifiers
+-- Took 2.24s to decompile.
+-- Executor: Delta (1.1.727.1199)
+
+-- https://lua.expert/
+local OsTime = require(game.ReplicatedStorage.OsTime)
+local t = {}
+local t2 = {}
+
+for i, v in ipairs(script:GetChildren()) do
+	t[v.Name] = require(v)
+end
+
+local function modsAreSame(p1, p2, p3) --[[ modsAreSame | Line: 64 ]]
+	if p1 == p2 then
+		return true
+	end
+
+	if p3 then
+		local v1 = p1.Start - p2.Start
+
+		if v1 > 0.1 or v1 < -0.1 then
+			return false
+		end
+	end
+
+	for k, v in pairs(p1) do
+		if k ~= "Start" and p2[k] ~= v then
+			return false
+		end
+	end
+
+	for k, v in pairs(p2) do
+		if k ~= "Start" and p1[k] ~= v then
+			return false
+		end
+	end
+
+	return true
+end
+
+local function paramsTag(p1) --[[ paramsTag | Line: 92 ]]
+	if p1 == nil then
+		return "_"
+	end
+
+	local v1 = ""
+
+	for k, v in pairs(p1) do
+		v1 = v1 .. k .. ":" .. v .. ","
+	end
+
+	return v1
+end
+
+local function tagToParams(p1) --[[ tagToParams | Line: 106 ]]
+	if p1 == "_" then
+		return nil
+	end
+
+	local t = {}
+
+	for i, v in ipairs((string.split(p1 .. ","))) do
+		local v2 = string.split(v, ":")
+		local v4 = v2[2]
+		local v5 = tonumber(v4)
+
+		if v5 then
+			v4 = v5
+		end
+
+		t[v2[1]] = v4
+	end
+
+	return t
+end
+
+local function forEachMod(p1, p2, p3, p4, p5) --[[ forEachMod | Line: 136 ]]
+	local Modifiers = p2.Modifiers
+
+	if not Modifiers then
+		return
+	end
+
+	for k, v in pairs(Modifiers) do
+		for k2, v2 in pairs(v) do
+			for i, v3 in ipairs(v2.Mods) do
+				p1(v3, p2, p3, p4, k, k2)
+
+				if p5 and p5.Break then
+					return
+				end
+			end
+		end
+	end
+end
+
+function t2.ForEachMod(p1, p2, p3) --[[ ForEachMod | Line: 153 | Upvalues: forEachMod (copy) ]]
+	local v1, v2, v3 = p1()
+
+	if v1 then
+		forEachMod(p2, v1, v2, v3)
+	end
+end
+function t2.CullTransientMods(p1) --[[ CullTransientMods | Line: 160 | Upvalues: t (copy) ]]
+	local v1, _, _2 = p1()
+
+	if not v1 then
+		return
+	end
+
+	local t2 = {}
+
+	for k, v in pairs(v1.Modifiers) do
+		if t[k] ~= nil then
+			local t3 = {}
+			local v2 = false
+
+			for k2, v3 in pairs(v) do
+				local t4 = {}
+
+				for i, v4 in ipairs(v3.Mods) do
+					if not v4.Transient then
+						table.insert(t4, v4)
+					end
+				end
+
+				if #t4 > 0 then
+					v3.Mods = t4
+					t3[k2] = v3
+					v2 = true
+				end
+			end
+
+			if v2 then
+				t2[k] = t3
+			end
+		end
+	end
+
+	v1.Modifiers = t2
+end
+function t2.CullOfflineLimitMods(p1) --[[ CullOfflineLimitMods | Line: 197 | Upvalues: t (copy) ]]
+	local v1 = p1.OfflineTime or 0
+
+	if v1 < 0 then
+		v1 = 0
+	end
+
+	if not p1 then
+		return
+	end
+
+	local t2 = {}
+
+	for k, v in pairs(p1.Modifiers) do
+		if t[k] ~= nil then
+			local t3 = {}
+			local v2 = false
+
+			for k2, v3 in pairs(v) do
+				local t4 = {}
+
+				for i, v4 in ipairs(v3.Mods) do
+					if not v4.OfflineLimit or v1 < v4.OfflineLimit then
+						table.insert(t4, v4)
+					end
+				end
+
+				if #t4 > 0 then
+					v3.Mods = t4
+					t3[k2] = v3
+					v2 = true
+				end
+			end
+
+			if v2 then
+				t2[k] = t3
+			end
+		end
+	end
+
+	p1.Modifiers = t2
+end
+function t2.CullLostOnDeathMods(p1) --[[ CullLostOnDeathMods | Line: 256 | Upvalues: t (copy), t2 (copy) ]]
+	local v1, v2, v3, v4, v5 = p1()
+
+	if not v1 then
+		return
+	end
+
+	local tbl = {
+		Remove = {},
+		Change = {}
+	}
+	local t3 = {}
+
+	for k, v in pairs(v1.Modifiers) do
+		if t[k] ~= nil then
+			local t4 = {}
+			local v6 = false
+
+			for k2, v7 in pairs(v) do
+				local Mods = v7.Mods
+				local t5 = {}
+
+				for i, v8 in ipairs(Mods) do
+					if not v8.LostOnDeath then
+						table.insert(t5, v8)
+					end
+				end
+
+				if #t5 > 0 then
+					v6 = true
+					v7.Mods = t5
+					t4[k2] = v7
+
+					if #t5 ~= #Mods then
+						table.insert(tbl.Change, { k, k2, v7.Params })
+					end
+
+					continue
+				end
+
+				table.insert(tbl.Remove, { k, k2, v7.Params })
+			end
+
+			if v6 then
+				t3[k] = t4
+			end
+		end
+	end
+
+	v1.Modifiers = t3
+
+	if v2 == nil then
+		return
+	end
+
+	for k, v in pairs(tbl) do
+		for i, v6 in ipairs(v) do
+			local v7 = t2.Resolve(v1, v2, v6[1], v6[2], v4, v5)
+			local v8 = t[v6[1]]
+
+			if v8.Effect ~= nil then
+				v8.Effect(k, v6[3], v3, v1, v7)
+			end
+		end
+	end
+end
+
+local function removeExpiredMods(p1, p2, p3, p4, p5) --[[ removeExpiredMods | Line: 323 | Upvalues: t (copy), OsTime (copy), t2 (copy) ]]
+	if p1 == nil then
+		return
+	end
+
+	if p2 and p1.ModifierCaches then
+		local v1 = if p4 then p4 else p1.ModifierCaches.Base
+
+		p4, p5 = v1, if p5 then p5 else p1.ModifierCaches.Multiplier
+	end
+
+	local Modifiers = p1.Modifiers
+	local t3 = {}
+
+	p1.Modifiers = t3
+
+	local tbl = {
+		Remove = {},
+		Change = {}
+	}
+
+	for k, v in pairs(Modifiers) do
+		if t[k] ~= nil then
+			local t4 = {}
+			local v3 = false
+
+			for k2, v2 in pairs(v) do
+				local Mods = v2.Mods
+				local t5 = {}
+				local v4 = false
+
+				for i, v5 in ipairs(Mods) do
+					local Dur = v5.Dur
+
+					if not v5.Removed then
+						if Dur == nil then
+							table.insert(t5, v5)
+
+							continue
+						end
+
+						if OsTime() - v5.Start < Dur then
+							local v52 = if v4 then v4 else v5.ScaleWithDur
+
+							table.insert(t5, v5)
+							v4 = v52
+						end
+					end
+				end
+
+				if #t5 <= 0 then
+					table.insert(tbl.Remove, { k, k2, v2.Params })
+
+					continue
+				end
+
+				v3 = true
+				v2.Mods = t5
+				t4[k2] = v2
+
+				if v4 or #t5 ~= #Mods then
+					table.insert(tbl.Change, { k, k2, v2.Params })
+				end
+			end
+
+			if v3 then
+				t3[k] = t4
+			end
+		end
+	end
+
+	p1.Modifiers = t3
+
+	if p2 == nil then
+		return tbl
+	end
+
+	for k, v in pairs(tbl) do
+		for i, v2 in ipairs(v) do
+			local v6 = t2.Resolve(p1, p2, v2[1], v2[2], p4, p5)
+			local v7 = t[v2[1]]
+
+			if v7.Effect ~= nil then
+				v7.Effect(k, v2[3], p3, p1, v6)
+			end
+		end
+	end
+
+	return tbl
+end
+
+function t2.ParamsTag(p1) --[[ ParamsTag | Line: 416 ]]
+	if p1 == nil then
+		return "_"
+	end
+
+	local v1 = ""
+
+	for k, v in pairs(p1) do
+		v1 = v1 .. k .. ":" .. v .. ","
+	end
+
+	return v1
+end
+function t2.Find(p1, p2, p3) --[[ Find | Line: 421 ]]
+	local Params = p1.Params
+	local v1
+
+	if Params == nil then
+		v1 = "_"
+	else
+		local v2 = ""
+
+		for k, v in pairs(Params) do
+			v2 = v2 .. k .. ":" .. v .. ","
+		end
+
+		v1 = v2
+	end
+
+	local v3 = p2.Modifiers[p1.Type]
+
+	if v3 == nil then
+		return nil
+	end
+
+	local v4 = v3[v1]
+
+	if v4 == nil then
+		return nil
+	end
+
+	local Mods = v4.Mods
+
+	if Mods == nil or #Mods == 0 then
+		return nil
+	end
+
+	local isStack = p1.Stack == nil
+	local Op = p1.Op
+	local Src = p1.Src
+	local BuffID = p1.BuffID
+	local _ = p1.Value
+
+	for i, v in ipairs(Mods) do
+		if Src == v.Src and (p3 or BuffID == p1.BuffID) then
+			return v, v1
+		end
+	end
+
+	return nil
+end
+function t2.DeleteByType(p1, p2) --[[ DeleteByType | Line: 473 ]]
+	if p2.Modifiers[p1] == nil then
+		return false
+	end
+
+	p2.Modifiers[p1] = nil
+
+	return true
+end
+function t2.DeleteByTypeAndParams(p1, p2) --[[ DeleteByTypeAndParams | Line: 482 ]]
+	local v1 = p2.Modifiers[p1.Type]
+
+	if v1 == nil then
+		return false
+	end
+
+	local Params = p1.Params
+	local v2
+
+	if Params == nil then
+		v2 = "_"
+	else
+		local v3 = ""
+
+		for k, v in pairs(Params) do
+			v3 = v3 .. k .. ":" .. v .. ","
+		end
+
+		v2 = v3
+	end
+
+	local v4 = v1[v2]
+
+	if v4 == nil then
+		return false
+	end
+
+	v4[v2] = nil
+
+	return true
+end
+function t2.DeleteBySource(p1, p2) --[[ DeleteBySource | Line: 503 ]]
+	local Params = p1.Params
+	local v1
+
+	if Params == nil then
+		v1 = "_"
+	else
+		local v2 = ""
+
+		for k, v in pairs(Params) do
+			v2 = v2 .. k .. ":" .. v .. ","
+		end
+
+		v1 = v2
+	end
+
+	local v3 = p2.Modifiers[p1.Type]
+
+	if v3 == nil then
+		return false
+	end
+
+	local v4 = v3[v1]
+
+	if v4 == nil then
+		return false
+	end
+
+	local Mods = v4.Mods
+
+	if Mods == nil or #Mods == 0 then
+		return false
+	end
+
+	local isStack = p1.Stack == nil
+	local Op = p1.Op
+	local Src = p1.Src
+	local BuffID = p1.BuffID
+	local _ = p1.Value
+	local t = {}
+	local v5 = false
+
+	for i, v in ipairs(Mods) do
+		if Src ~= v.Src then
+			table.insert(t, Src)
+			v5 = true
+		end
+	end
+
+	if #t <= 0 then
+		t = nil
+	end
+
+	v4.Mods = t
+
+	return v5
+end
+function t2.AdjustCombo(p1, p2) --[[ AdjustCombo | Line: 555 ]]
+	local v1 = p1.Combo or 1
+
+	p1.Combo = p2
+
+	if p1.Constant then
+		return
+	end
+
+	if p1.ValuePerStack then
+		p1.Value = p1.MinValue + p1.ValuePerStack * (p2 - 1)
+
+		return
+	end
+
+	if p1.Op == "Add" then
+		p1.Value = p1.Value / v1 * p2
+
+		return
+	end
+
+	if p1.Op ~= "Mul" then
+		return
+	end
+
+	p1.Value = 1 + p2 * ((p1.Value - 1) / v1)
+end
+function t2.Apply(p1, p2, p3) --[[ Apply | Line: 584 | Upvalues: t (copy), t2 (copy), OsTime (copy) ]]
+	if not p3 then
+		p3 = 1
+	end
+
+	if p1.Removed == true then
+		return
+	end
+
+	local v1 = t[p1.Type]
+
+	if v1 == nil then
+		return
+	end
+
+	local v2, v3, v4, v5, v6 = p2()
+
+	if v2 == nil then
+		return
+	end
+
+	local Stack = p1.Stack
+
+	if Stack == nil then
+		Stack = "Parallel"
+	end
+
+	if Stack ~= "Parallel" then
+		local v8, v9 = t2.Find(p1, v2, if Stack == "Refresh" or Stack == "Extend" then true elseif Stack == "Combo" then true else false)
+
+		if v8 then
+			if (v8.Stack or "Parallel") == Stack then
+				if v8.Op and v8.Op ~= p1.Op then
+					v8.Op = p1.Op
+					v8.Value = p1.Value
+					v8.MinValue = p1.MinValue
+					v8.MaxValue = p1.MaxValue
+
+					if p1.FillDur then
+						local v11 = OsTime()
+
+						v8.Start = math.min(v11, v8.Start + ((v8.MinDurInc or 0) + v8.DurInc * p3))
+					end
+
+					local Params = p1.Params
+					local v13 = t2.Resolve(v2, v3, p1.Type, v9, v5, v6)
+
+					if v1.Effect ~= nil then
+						v1.Effect("Apply", Params, v4, v2, v13)
+					end
+				else
+					local v14 = false
+
+					if Stack == "Refresh" then
+						v8.Start = OsTime()
+
+						if p1.Op == "Set" then
+							v14 = true
+						end
+					elseif Stack == "Extend" then
+						if p1.FillDur then
+							local v16 = OsTime()
+
+							v8.Start = math.min(v16, v8.Start + ((v8.MinDurInc or 0) + v8.DurInc * p3))
+						else
+							local v18 = v8.Dur + p1.Dur * p3
+
+							if p1.MaxDur and p1.MaxDur <= v18 then
+								local v20 = OsTime()
+
+								v8.Start = math.min(v20, v8.Start + (v18 - p1.MaxDur))
+								v18 = p1.MaxDur
+							end
+
+							v8.Dur = v18
+						end
+					elseif Stack == "Combo" then
+						if not v8.FixedDur and v8.Dur then
+							v8.Start = OsTime()
+						end
+
+						local Combo = v8.Combo
+
+						if Combo == nil then
+							Combo = 1
+						end
+
+						local v22 = Combo + p3
+
+						if v8.MaxCombo and v8.MaxCombo < v22 then
+							v22 = v8.MaxCombo
+						end
+
+						v8.Combo = v22
+
+						if not v8.Constant then
+							if p1.ValuePerStack then
+								v8.Value = p1.Value + p1.ValuePerStack * (v22 - 1)
+							elseif v8.Op == "Add" then
+								v8.Value = v22 * p1.Value
+							elseif v8.Op == "Mul" then
+								v8.Value = 1 + v22 * (p1.Value - 1)
+							end
+						end
+
+						v14 = true
+					end
+
+					if v14 then
+						local Params = p1.Params
+						local v23 = t2.Resolve(v2, v3, p1.Type, v9, v5, v6)
+
+						if v1.Effect ~= nil then
+							v1.Effect("Apply", Params, v4, v2, v23)
+						end
+					end
+				end
+			else
+				local v24 = print
+
+				v24("mismatch of modifier stack, mod src " .. tostring(p1.Src))
+			end
+
+			return v9, v8
+		end
+	end
+
+	if p1.FillDur then
+		p1.Start = OsTime() - p1.Dur + p1.DurInc * 1 + (if p3 > 1 then 0 else p1.MinDurInc or 0)
+	else
+		p1.Start = OsTime()
+	end
+
+	local v28
+
+	if p3 and p3 > 1 then
+		v28 = {}
+
+		for k, v in pairs(p1) do
+			v28[k] = v
+		end
+	else
+		v28 = nil
+	end
+
+	local Type = p1.Type
+	local Params = p1.Params
+	local v29
+
+	if Params == nil then
+		v29 = "_"
+	else
+		local v30 = ""
+
+		for k, v in pairs(Params) do
+			v30 = v30 .. k .. ":" .. v .. ","
+		end
+
+		v29 = v30
+	end
+
+	p1.Type = nil
+	p1.Params = nil
+
+	local Modifiers = v2.Modifiers
+
+	if v2.Modifiers[Type] == nil then
+		v2.Modifiers[Type] = {}
+	end
+
+	if v2.Modifiers[Type][v29] == nil then
+		v2.Modifiers[Type][v29] = {
+			Params = Params,
+			Mods = {}
+		}
+	end
+
+	table.insert(v2.Modifiers[Type][v29].Mods, p1)
+
+	local v31 = t2.Resolve(v2, v3, Type, v29, v5, v6)
+
+	if v1.Effect ~= nil then
+		v1.Effect("Apply", Params, v4, v2, v31)
+	end
+
+	p1.Removed = false
+
+	if p3 and p3 > 1 then
+		return t2.Apply(v28, p2, p3 - 1)
+	end
+
+	return v29, p1
+end
+function t2.Remove(p1, p2, p3, p4) --[[ Remove | Line: 875 | Upvalues: t (copy), modsAreSame (copy), t2 (copy) ]]
+	if p3.Removed then
+		return false
+	end
+
+	local v1, v2, v3, v4, v5 = p4()
+
+	if v1 == nil then
+		return false
+	end
+
+	local v6 = t[p1]
+
+	if v6 == nil then
+		return false
+	end
+
+	if v1.Modifiers[p1] == nil then
+		return false
+	end
+
+	local v7 = v1.Modifiers[p1][p2]
+
+	if v7 == nil then
+		return false
+	end
+
+	local Stack = p3.Stack
+
+	if Stack == nil then
+		Stack = "Parallel"
+	end
+
+	local v8 = if Stack == "Parallel" then true else false
+	local t3 = {}
+	local v9 = false
+
+	for i, v in ipairs(v7.Mods) do
+		if modsAreSame(p3, v, v8) then
+			v9 = true
+
+			continue
+		end
+
+		table.insert(t3, v)
+	end
+
+	if not v9 then
+		print("i could not find the mod...")
+
+		return false
+	end
+
+	p3.Removed = true
+
+	if #t3 > 0 then
+		v7.Mods = t3
+	else
+		v1.Modifiers[p1][p2] = nil
+	end
+
+	local v10 = t2.Resolve(v1, v2, p1, p2, v4, v5)
+
+	if v6.Effect == nil then
+		return true
+	end
+
+	v6.Effect("Remove", v7.Params, v3, v1, v10)
+
+	return true
+end
+function t2.ResolveModDurPercentRemaining(p1) --[[ ResolveModDurPercentRemaining | Line: 948 | Upvalues: OsTime (copy) ]]
+	local Dur = p1.Dur
+
+	if not Dur then
+		return 1
+	end
+
+	local Start = p1.Start
+
+	if Start then
+		return math.clamp(1 - (OsTime() - Start) / Dur, 0, 1)
+	end
+
+	return 1
+end
+function t2.ResolveModMaxValue(p1) --[[ ResolveModMaxValue | Line: 976 ]]
+	return p1.MaxValue or p1.Value
+end
+function t2.ResolveModValue(p1) --[[ ResolveModValue | Line: 982 | Upvalues: t2 (copy) ]]
+	if not p1.ScaleWithDur then
+		return p1.Value
+	end
+
+	local v1 = if p1.Constant then 1 else t2.ResolveModDurPercentRemaining(p1)
+
+	if p1.ScalingPower then
+		v1 = math.pow(v1, p1.ScalingPower)
+	end
+
+	local v4 = p1.MinValue or 0
+
+	return v4 + ((p1.MaxValue or p1.Value) - v4) * v1
+end
+function t2.ResolveFromCache(p1, p2, p3) --[[ ResolveFromCache | Line: 1007 | Upvalues: t2 (copy) ]]
+	if not p1 then
+		return nil
+	end
+
+	local ModifierCaches = p1.ModifierCaches
+
+	if not ModifierCaches then
+		return t2.Resolve(p1, nil, p2, p3)
+	end
+
+	local v1 = ModifierCaches.Value[p2]
+
+	if not v1 then
+		return t2.Resolve(p1, nil, p2, p3)
+	end
+
+	local v2 = v1[p3]
+
+	if v2 then
+		return v2, ModifierCaches.Base[p2][p3], ModifierCaches.Multiplier[p2][p3]
+	end
+
+	return t2.Resolve(p1, nil, p2, p3)
+end
+function t2.Resolve(p1, p2, p3, p4, p5, p6) --[[ Resolve | Line: 1035 | Upvalues: t (copy), t2 (copy) ]]
+	if not p1 then
+		return nil
+	end
+
+	local v1 = t[p3]
+	local v2 = v1.Base(p1)
+	local v3 = 1
+	local v4 = require(game.ReplicatedStorage.StatTools).CheckIfRoboBearChallengeRoundIsRunning(p1)
+	local v5 = p1.Modifiers[p3]
+	local v6, sum
+
+	if v5 == nil then
+		v6 = v2
+		sum = v2
+	else
+		local v7 = v5[p4]
+
+		if v7 == nil then
+			v6 = v2
+			sum = v2
+		else
+			local Mods = v7.Mods
+
+			if Mods == nil or not (#Mods > 0) then
+				v6 = v2
+				sum = v2
+			else
+				local v8
+
+				v8 = nil
+				sum = v2
+
+				for i, v in ipairs(Mods) do
+					if v.Op == "Set" and not (v4 and v.RBCDisable) then
+						if v8 == nil then
+							v8 = v
+
+							continue
+						end
+
+						if v.Start > v8.Start then
+							v8 = v
+						end
+					end
+				end
+
+				if v8 then
+					sum = v8.Value
+				end
+
+				for i, v in ipairs(Mods) do
+					if v.Op == "Add" and not (v4 and v.RBCDisable) then
+						sum = sum + t2.ResolveModValue(v)
+					end
+				end
+
+				v6 = sum
+
+				for i, v in ipairs(Mods) do
+					if v.Op == "Mul" and not (v4 and v.RBCDisable) then
+						v3 = v3 * t2.ResolveModValue(v)
+					end
+				end
+
+				if v3 ~= 1 then
+					sum = sum * v3
+				end
+			end
+		end
+	end
+
+	if v1.Max and v1.Max < sum then
+		sum = v1.Max
+	elseif v1.Min and sum < v1.Min then
+		sum = v1.Min
+	end
+
+	if p2 and p1.ModifierCaches then
+		local v9 = if p5 then p5 else p1.ModifierCaches.Base
+
+		p5, p6 = v9, if p6 then p6 else p1.ModifierCaches.Multiplier
+	end
+
+	if p2 ~= nil then
+		if p2[p3] == nil then
+			p2[p3] = {}
+		end
+
+		p2[p3][p4] = sum
+	end
+
+	if p5 ~= nil then
+		if p5[p3] == nil then
+			p5[p3] = {}
+		end
+
+		p5[p3][p4] = v6
+	end
+
+	if p6 ~= nil then
+		if p6[p3] == nil then
+			p6[p3] = {}
+		end
+
+		p6[p3][p4] = v3
+	end
+
+	return sum, v6, v3
+end
+function t2.ReapplyEffects(p1) --[[ ReapplyEffects | Line: 1161 | Upvalues: t (copy), t2 (copy) ]]
+	local v1, v2, v3, v4, v5 = p1()
+
+	if v1 == nil then
+		return nil
+	end
+
+	for k, v in pairs(v1.Modifiers) do
+		local v6 = t[k]
+
+		for k2, v7 in pairs(v) do
+			local v72 = t2.Resolve(v1, v2, k, k2, v4, v5)
+
+			if v6.Effect ~= nil then
+				v6.Effect("Continue", v7.Params, v3, v1, v72)
+			end
+		end
+	end
+
+	for k, v in pairs(t) do
+		if v.ForceEffect and not v1.Modifiers[k] then
+			v.Effect("Continue", {}, v3, v1, v.Base(v1))
+		end
+	end
+end
+function t2.Initiate(p1) --[[ Initiate | Line: 1198 | Upvalues: removeExpiredMods (copy), t2 (copy) ]]
+	local v1, _, _2, _3, _4 = p1()
+
+	if v1 ~= nil then
+		removeExpiredMods(v1)
+		t2.CullTransientMods(p1)
+		t2.ReapplyEffects(p1)
+	end
+end
+function t2.Description(p1, p2, p3) --[[ Description | Line: 1218 | Upvalues: t (copy), t2 (copy) ]]
+	local v1 = t[p1.Type]
+
+	if v1 == nil then
+		return "nil"
+	end
+
+	local sum = t2.ResolveModValue(p1, true)
+	local t3 = {}
+
+	for k, v in pairs(p1) do
+		t3[k] = v
+	end
+
+	if p2 and not p1.Constant then
+		sum = if p1.ValuePerStack then sum + p1.ValuePerStack * (p2 - 1) else sum + (if p1.Op == "Mul" then sum - 1 else sum) * (p2 - 1)
+	end
+
+	if not p3 then
+		p3 = 1000
+	end
+
+	local v3
+
+	if type(sum) == "number" then
+		t3.Value = math.floor(sum * p3 + 0.5) / p3
+		v3 = if p1.Op == "Add" then sum < 0 elseif sum < 1 then true else false
+	else
+		v3 = nil
+	end
+
+	if v1.NegativeIsGood then
+		v3 = not v3
+	end
+
+	return v1.Description(t3, t3.Params), v3
+end
+function t2.FlagForRemovalBySource(p1, p2, p3) --[[ FlagForRemovalBySource | Line: 1327 | Upvalues: t2 (copy) ]]
+	local v1 = false
+	local v2 = false
+	local v3 = nil
+	local v4 = 0
+
+	t2.ForEachMod(p1, function(p1, p22, p32, p4, p5, p6) --[[ Line: 1338 | Upvalues: p2 (copy), v1 (ref), v4 (ref), p3 (copy), v3 (ref), v2 (ref), t2 (ref) ]]
+		if p1.Src ~= p2 or p1.Removed then
+			return
+		end
+
+		v1 = true
+		v4 = v4 + 1
+
+		if p3 then
+			v3 = p1.Combo or 1
+			v3 = v3 - p3
+
+			if v3 <= 0 then
+				p1.Removed = true
+				v2 = true
+			else
+				t2.AdjustCombo(p1, v3)
+			end
+		else
+			p1.Removed = true
+			v2 = true
+		end
+	end)
+
+	return v1, v2, v3
+end
+function t2.RemoveFromStatsBySource(p1, p2) --[[ RemoveFromStatsBySource | Line: 1373 | Upvalues: forEachMod (copy) ]]
+	forEachMod(function(p1, p22) --[[ remove | Line: 1379 | Upvalues: p2 (copy) ]]
+		if p1.Src ~= p2 or p1.Removed then
+			return
+		end
+
+		p1.Removed = true
+	end, p1)
+end
+function t2.FlagForRemovalBySources(p1, p2) --[[ FlagForRemovalBySources | Line: 1406 | Upvalues: t2 (copy) ]]
+	local v1 = false
+	local t = {}
+	local v2 = 0
+
+	t2.ForEachMod(p1, function(p1, p22, p3, p4, p5, p6) --[[ Line: 1419 | Upvalues: p2 (copy), v1 (ref), v2 (ref), t (copy) ]]
+		if not p2[p1.Src] or p1.Removed then
+			return
+		end
+
+		v1 = true
+		v2 = v2 + 1
+		p1.Removed = true
+		t[p1.Src] = p1.Combo or 1
+	end)
+
+	return v1, t
+end
+function t2.GetStacksBySource(p1, p2) --[[ GetStacksBySource | Line: 1436 | Upvalues: t2 (copy) ]]
+	local v1 = 0
+	local t = {
+		Break = false
+	}
+
+	t2.ForEachMod(p1, function(p1, p22) --[[ Line: 1448 | Upvalues: p2 (copy), v1 (ref), t (copy) ]]
+		if p1.Src ~= p2 or p1.Removed then
+			return
+		end
+
+		v1 = p1.Combo
+
+		if not p1.Combo then
+			v1 = 1
+		end
+
+		t.Break = true
+	end, t)
+
+	return v1
+end
+function t2.GetModsBySource(p1, p2) --[[ GetModsBySource | Line: 1473 | Upvalues: forEachMod (copy), t2 (copy) ]]
+	local t = {}
+
+	local function fetchMods(p1, p22) --[[ fetchMods | Line: 1480 | Upvalues: p2 (copy), t (copy) ]]
+		if p1.Src ~= p2 or p1.Removed then
+			return
+		end
+
+		table.insert(t, p1)
+	end
+
+	if type(p1) == "table" then
+		forEachMod(fetchMods, p1)
+	else
+		t2.ForEachMod(p1, function(p1, p22) --[[ Line: 1491 | Upvalues: p2 (copy), t (copy) ]]
+			if p1.Src ~= p2 or p1.Removed then
+				return
+			end
+
+			table.insert(t, p1)
+		end)
+	end
+
+	return t
+end
+function t2.FlagForRemovalByBuffID(p1, p2) --[[ FlagForRemovalByBuffID | Line: 1504 | Upvalues: t2 (copy) ]]
+	local v1 = false
+
+	t2.ForEachMod(p1, function(p1, p22) --[[ Line: 1507 | Upvalues: p2 (copy), v1 (ref) ]]
+		if p1.BuffID ~= p2 or p1.Removed then
+			return
+		end
+
+		p1.Removed = true
+		v1 = true
+	end)
+
+	return v1
+end
+function t2.Update(p1) --[[ Update | Line: 1517 | Upvalues: removeExpiredMods (copy) ]]
+	local v1, v2, v3, v4, v5 = p1()
+
+	if v1 ~= nil then
+		removeExpiredMods(v1, v2, v3, v4, v5)
+	end
+end
+function t2.GetBuffs(p1, p2) --[[ GetBuffs | Line: 1529 | Upvalues: tagToParams (copy), t (copy), OsTime (copy) ]]
+	if not p2 then
+		p2 = p1()
+	end
+
+	local t2 = {}
+	local v2 = 0
+
+	if not p2 then
+		return t2, v2
+	end
+
+	local Buffs = require(game.ReplicatedStorage.Buffs)
+	local t3 = {}
+
+	local function cachedPtagToParams(p1) --[[ cachedPtagToParams | Line: 1551 | Upvalues: t3 (copy), tagToParams (ref) ]]
+		local v1 = t3[p1]
+
+		if v1 then
+			return v1
+		end
+
+		local v2 = tagToParams(p1)
+
+		t3[p1] = v2
+
+		return v2
+	end
+
+	for k, v in pairs(p2.Modifiers) do
+		if t[k] then
+			for k2, v3 in pairs(v) do
+				for i, v5 in ipairs(v3.Mods) do
+					local v32, v4
+					local BuffID = v5.BuffID
+
+					if BuffID then
+						if Buffs.Get(v5.Src) then
+							Buffs.AssertModToBuffType(v5, v5.Src)
+
+							local v52 = t2[BuffID]
+
+							if not v52 then
+								local Dur = v5.Dur
+
+								v32 = if Dur then (OsTime() - v5.Start) / Dur else 0
+
+								local t4 = {
+									Type = v5.Src,
+									Start = v5.Start,
+									Progress = v32,
+									Dur = Dur,
+									Combo = v5.Combo,
+									Mods = {}
+								}
+
+								t2[BuffID] = t4
+								v52, v2 = t4, v2 + 1
+							end
+
+							if v52 then
+								local t4 = {}
+
+								for k3, v6 in pairs(v5) do
+									t4[k3] = v6
+								end
+
+								t4.Type = k
+
+								local v6 = t3[k2]
+
+								if v6 then
+									v4 = v6
+								else
+									local v7 = tagToParams(k2)
+
+									t3[k2] = v7
+									v4 = v7
+								end
+
+								t4.Params = v4
+								table.insert(v52.Mods, t4)
+							end
+
+							continue
+						end
+
+						local v8 = print
+
+						v8("buff " .. tostring(v5.Src) .. " was removed from game")
+						v5.Removed = true
+					end
+				end
+			end
+		end
+	end
+
+	return t2, v2
+end
+function t2.FixPermStacks(p1, p2) --[[ FixPermStacks | Line: 1701 | Upvalues: t2 (copy) ]]
+	local tbl = {
+		["Tabby Love"] = true,
+		["Polar Power"] = true
+	}
+	local tbl2 = {}
+
+	t2.ForEachMod(p1, function(p1, p2) --[[ Line: 1713 | Upvalues: tbl (copy), tbl2 (copy) ]]
+		if not (p1.Src and (tbl[p1.Src] and p1.BuffID)) then
+			return
+		end
+
+		local v1 = tbl2[p1.Src]
+
+		if not v1 then
+			v1 = {}
+			tbl2[p1.Src] = v1
+		end
+
+		if not v1["" .. p1.BuffID] then
+			v1["" .. p1.BuffID] = p1.Combo or 1
+		end
+	end)
+
+	for k, v in pairs(tbl) do
+		t2.FlagForRemovalBySource(p1, k)
+	end
+
+	t2.Update(p1)
+
+	local Buffs = require(game.ReplicatedStorage.Buffs)
+	local v1, _, _2 = p1()
+
+	for k, v in pairs(tbl2) do
+		local sum = 0
+
+		for k2, v2 in pairs(v) do
+			sum = sum + v2
+		end
+
+		local v2 = Buffs.Clone(k)
+		local v3 = v1.Totals.BuffCount or 0
+
+		v1.Totals.BuffCount = v3 + 1
+
+		for i, v4 in ipairs(v2.Mods) do
+			v4.BuffID = v3
+
+			local _3, _4 = t2.Apply(v4, p1, sum)
+		end
+	end
+
+	local v4 = nil
+
+	t2.ForEachMod(p1, function(p1, p2) --[[ Line: 1774 | Upvalues: v4 (ref) ]]
+		if not v4 and p1.Src == "Science Enhancement" then
+			v4 = p1.Combo
+		end
+	end)
+
+	if not v4 then
+		v4 = 0
+	end
+
+	local v5 = v1.Quests.Completed or {}
+	local count = 0
+
+	for i, v in ipairs((require(game.ReplicatedStorage.Quests):GetAllQuests())) do
+		if v.NPC == "Science Bear" and v.Rewards then
+			for i2, v2 in ipairs(v.Rewards) do
+				if v2.Category == "Buff" and v2.Type == "Science Enhancement" then
+					for i3, v3 in ipairs(v5) do
+						if v3 == v.Name then
+							count = count + 1
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if v4 < count then
+		local v7 = count - v4
+
+		if not v1.Flags then
+			v1.Flags = {}
+		end
+
+		v1.Flags.FixedScienceStacks = true
+
+		local v8 = Buffs.Clone("Science Enhancement")
+		local v9 = v1.Totals.BuffCount or 0
+
+		v1.Totals.BuffCount = v9 + 1
+
+		for i, v in ipairs(v8.Mods) do
+			v.BuffID = v9
+
+			local _3, _4 = t2.Apply(v, p1, v7)
+		end
+	end
+end
+function t2.GetBase(p1) --[[ GetBase | Line: 1834 | Upvalues: t (copy) ]]
+	local v1 = t[p1]
+
+	if v1 then
+		return v1.Base()
+	end
+
+	error("no stat named " .. p1)
+end
+function t2.GetStatOld(p1, p2, p3, p4) --[[ GetStatOld | Line: 1848 | Upvalues: t2 (copy) ]]
+	if p3 == nil then
+		return p2
+	end
+
+	if p2 == nil then
+		return nil
+	end
+
+	if p2[p3] == nil then
+		return t2.GetBase(p3)
+	end
+
+	local v1 = t2.ParamsTag(p4)
+	local _ = p2[p3][v1]
+
+	return p2[p3][v1]
+end
+function t2.GetSummary(p1) --[[ GetSummary | Line: 1869 ]] end
+function t2.RemoveUnsourcedMods(p1) --[[ RemoveUnsourcedMods | Line: 1881 ]]
+	local Modifiers = p1.Modifiers
+
+	if not Modifiers then
+		return
+	end
+
+	local count = 0
+	local count2 = 0
+	local t = {}
+
+	for k, v in pairs(Modifiers) do
+		if v then
+			local count3 = 0
+			local t2 = {}
+
+			for k2, v2 in pairs(v) do
+				if v2 and v2.Mods then
+					local t3 = {}
+
+					for i, v3 in ipairs(v2.Mods) do
+						if v3.Src then
+							table.insert(t3, v3)
+							count = count + 1
+
+							continue
+						end
+
+						count2 = count2 + 1
+					end
+
+					if #t3 > 0 then
+						v2.Mods = t3
+						t2[k2] = v2
+						count3 = count3 + 1
+					end
+				end
+			end
+
+			if count3 > 0 then
+				t[k] = t2
+			end
+		end
+	end
+
+	p1.Modifiers = t
+end
+function t2.Clone(p1) --[[ Clone | Line: 1935 ]]
+	local t = {}
+
+	for k, v in pairs(p1) do
+		t[k] = v
+	end
+
+	return t
+end
+function t2.CloneArray(p1) --[[ CloneArray | Line: 1943 | Upvalues: t2 (copy) ]]
+	local t = {}
+
+	for i, v in ipairs(p1) do
+		table.insert(t, t2.Clone(v))
+	end
+
+	return t
+end
+
+return t2
