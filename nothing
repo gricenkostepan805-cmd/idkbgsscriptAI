@@ -1,248 +1,366 @@
-local t = {
-	NEIGHBOR_COORDS = {
-		{ 0, -1 },
-		{ -1, 0 },
-		{ 1, 0 },
-		{ 1, -1 },
-		{ -1, -1 },
-		{ 0, 1 }
-	}
-}
+-- =========================================================================
+-- BSS SERVER ENGINE - Canonical Events.ServerListen API
+-- Does NOT touch the loading screen. The client's InitGui will call
+-- LoadingGui.Hide() naturally once RetrievePlayerStats returns data.
+-- =========================================================================
 
-require(game.ReplicatedStorage.HCCellTypes)
-function t.Count(p1, p2) --[[ Count | Line: 18 ]]
-	if not p1 then
-		return 0
-	end
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+local Workspace = game:GetService("Workspace")
 
-	if not p2 then
-		p2 = {}
-	end
+-- Require server modules
+local DataStoreModule = require(ServerStorage:WaitForChild("DataStore"))
+local PlayerTools = require(ServerStorage:WaitForChild("PlayerTools"))
+local PollenTools = require(ServerStorage:WaitForChild("PollenTools"))
+local PlayerStatManager = require(ServerStorage:WaitForChild("PlayerStatManager"))
 
-	local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
-	local BeeType = p2.BeeType
-	local Color = p2.Color
-	local Level = p2.Level
-	local Rarity = p2.Rarity
-	local v1 = if p2.Gifted == true then true else false
-	local BeeStats = require(game.ReplicatedStorage.BeeStats)
+-- Require the canonical Events module (scans its own children for remotes)
+local Events = require(ReplicatedStorage:WaitForChild("Events"))
 
-	local function f2(p1) --[[ Line: 37 | Upvalues: BeeType (copy), Color (copy), BeeTypes (copy), Level (copy), Rarity (copy), v1 (copy), BeeStats (copy) ]]
-		if p1.Type == nil then
-			return 0
-		end
-
-		if BeeType and p1.Type ~= BeeType then
-			return 0
-		end
-
-		if Color and BeeTypes:GetStat(p1.Type, "ColorType") ~= Color then
-			return 0
-		end
-
-		if Level and p1.Lvl < Level then
-			return 0
-		end
-
-		if Rarity and BeeTypes:GetStat(p1.Type, "Rarity") ~= Rarity then
-			return 0
-		end
-
-		if v1 and not BeeStats.HasTrait(p1, "Gifted") then
-			return 0
-		end
-
-		return 1
-	end
-
-	local sum = 0
-
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			sum = sum + f2(v2)
-		end
-	end
-
-	return sum
+-- Ensure ServerVersion exists (ClientInit does WaitForChild on this)
+if not Workspace:FindFirstChild("ServerVersion") then
+	local sv = Instance.new("StringValue")
+	sv.Name = "ServerVersion"
+	sv.Value = "621"
+	sv.Parent = Workspace
 end
-function t.CountActiveTypesOfColor(p1, p2, p3) --[[ CountActiveTypesOfColor | Line: 61 | Upvalues: t (copy) ]]
-	if not p1 then
-		return 0
+
+-- Player data cache
+local playerCache = {}
+local activePlayerObjects = {}
+
+-- Expose GetPlayerData for PlayerStatManager integration
+local function GetPlayerData(player)
+	return playerCache[player]
+end
+PlayerStatManager.SetMainServer({ GetPlayerData = GetPlayerData })
+
+-- Honeycomb bridge: some scripts reference workspace.Honeycomb
+pcall(function()
+	local liveHoneycombs = Workspace:FindFirstChild("Honeycombs")
+	if liveHoneycombs and not Workspace:FindFirstChild("Honeycomb") then
+		local bridge = Instance.new("ObjectValue")
+		bridge.Name = "Honeycomb"
+		bridge.Value = liveHoneycombs
+		bridge.Parent = Workspace
 	end
+end)
 
-	local BeeTypes = require(game.ReplicatedStorage.BeeTypes)
-	local t2 = {}
-	local v1 = if p3 then t.GetGiftedMap(p1) else nil
+-- =========================================================================
+-- REMOTE FUNCTION HANDLERS via Events.ServerListen
+-- These use the canonical Events module API, which sets OnServerInvoke
+-- on the RemoteFunction children of the Events ModuleScript.
+-- =========================================================================
 
-	local function f2(p1) --[[ Line: 78 | Upvalues: p3 (copy), v1 (ref), p2 (copy), BeeTypes (copy), t2 (copy) ]]
-		if p1.Type == nil then
-			return 0
-		end
+-- RetrievePlayerStats: Full player data table (critical for loading)
+-- ClientStatCache:Get() invokes this. If it returns nil, the loading
+-- screen never hides and the game freezes.
+Events.ServerListen("RetrievePlayerStats", function(player)
+	local data = playerCache[player] or DataStoreModule.NewPlayerData()
+	return data
+end)
 
-		if p3 and not v1[p1.Type] then
-			return 0
-		end
-
-		if p2 and p2 == "Colorless" then
-			if BeeTypes:GetStat(p1.Type, "ColorType") ~= "None" then
+-- RetrievePlayerStat: Individual stat lookup
+Events.ServerListen("RetrievePlayerStat", function(player, statName)
+	local data = playerCache[player] or DataStoreModule.NewPlayerData()
+	if type(statName) == "string" then
+		return data[statName] or 0
+	elseif type(statName) == "table" then
+		local current = data
+		for _, key in ipairs(statName) do
+			if type(current) == "table" then
+				current = current[key]
+			else
 				return 0
 			end
-		elseif p2 and BeeTypes:GetStat(p1.Type, "ColorType") ~= p2 then
-			return 0
 		end
-
-		if t2[p1.Type] then
-			return 0
-		end
-
-		t2[p1.Type] = true
-
-		return 1
+		return current or 0
 	end
+	return 0
+end)
 
-	local sum = 0
-
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			sum = sum + f2(v2)
-		end
+-- RetrieveCachedPlayerStat: Same as RetrievePlayerStat
+Events.ServerListen("RetrieveCachedPlayerStat", function(player, statName)
+	local data = playerCache[player] or DataStoreModule.NewPlayerData()
+	if type(statName) == "string" then
+		return data[statName] or 0
 	end
+	return 0
+end)
 
-	return sum
-end
-function t.CountType(p1, p2) --[[ CountType | Line: 122 | Upvalues: t (copy) ]]
-	return t.Count(p1, {
-		BeeType = p2
-	})
-end
-function t.GetAverageBeeLevel(p1) --[[ GetAverageBeeLevel | Line: 128 ]]
-	local count = 0
-	local sum = 0
+-- RetrievePlayerStatsSummary: Summary stats for UI
+Events.ServerListen("RetrievePlayerStatsSummary", function(player)
+	local pData = playerCache[player] or DataStoreModule.NewPlayerData()
+	return {
+		Honey = pData.Honey or 0,
+		TotalHoney = pData.TotalHoney or 0,
+		DailyHoney = pData.DailyHoney or 0,
+		BeesDiscovered = (pData.Totals and pData.Totals.TotalBeesDiscovered) or 0,
+		BadgesEarned = 0
+	}
+end)
 
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			sum = sum + v2.Lvl
-			count = count + 1
-		end
-	end
+-- RetrievePlayerStatsIntervalBackups: Interval data for leaderboards
+Events.ServerListen("RetrievePlayerStatsIntervalBackups", function(player)
+	local defaultPollen = {
+		All = 0, Colors = { Red = 0, White = 0, Blue = 0 },
+		Zones = {}, ByTag = {}, ZoneColors = {}
+	}
+	return {
+		Day = {
+			ID = 1,
+			Stats = {},
+			Totals = {
+				Honey = 0, honey = 0,
+				FarmedHoney = 0, farmedHoney = 0,
+				ChallengeHoney = 0,
+				TotalBeesDiscovered = 0,
+				TotalGiftedBeesDiscovered = 0,
+				Pollen = defaultPollen, pollen = defaultPollen,
+				ChallengePollen = defaultPollen,
+				Kills = {}
+			}
+		}
+	}
+end)
 
-	return sum / count, count
-end
-function t.GetBeeFile(p1, p2, p3) --[[ GetBeeFile | Line: 148 ]]
-	if not (p2 and p3) then
-		return nil
-	end
+-- ItemPackageEvent: Item package requests
+Events.ServerListen("ItemPackageEvent", function(player, action, data)
+	return true
+end)
 
-	if not p1 then
-		return nil
-	end
+-- GetBondToLevel: Bond needed for bee level up
+Events.ServerListen("GetBondToLevel", function(player, level)
+	return (level or 1) * 10
+end)
 
-	local v1 = p1["x" .. p2]
+-- RetrieveBeeInfoSummary: Bee info for BeeMenu
+Events.ServerListen("RetrieveBeeInfoSummary", function(player)
+	local pData = playerCache[player]
+	if not pData then return {} end
+	return pData.Bees or {}
+end)
 
-	if v1 then
-		return v1["y" .. p3]
-	end
+-- ConstructHiveCellFromEgg: Place egg in hive
+Events.ServerListen("ConstructHiveCellFromEgg", function(player, eggType)
+	local pData = playerCache[player]
+	if not pData then return false end
+	if not pData.Bees then pData.Bees = {} end
+	table.insert(pData.Bees, { Type = "Basic", Level = 1 })
+	return true
+end)
 
+-- FetchDigitalBeeModel: Return a model for digital bee
+Events.ServerListen("FetchDigitalBeeModel", function(player)
 	return nil
-end
-function t.GetBeeFileOfType(p1, p2) --[[ GetBeeFileOfType | Line: 159 ]]
-	require(game.ReplicatedStorage.BeeStats)
+end)
 
-	local v1 = nil
+-- GetPromoInfo: Promo information
+Events.ServerListen("GetPromoInfo", function(player)
+	return {}
+end)
 
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			if v2.Type == p2 then
-				v1 = v2
+-- YesNoPromptPopUp: Yes/No prompt response
+Events.ServerListen("YesNoPromptPopUp", function(player, ...)
+	return true
+end)
 
-				break
+-- WindShrineDonation: Handle wind shrine donations
+Events.ServerListen("WindShrineDonation", function(player, ...)
+	return true
+end)
+
+-- BlenderCommand: Handle blender commands
+Events.ServerListen("BlenderCommand", function(player, ...)
+	return true
+end)
+
+-- =========================================================================
+-- REMOTE EVENT HANDLERS via Events.ServerListen
+-- =========================================================================
+
+-- ToolCollect: Pollen collection when player swings their tool
+Events.ServerListen("ToolCollect", function(player, ...)
+	pcall(function(...)
+		PollenTools.CollectPollen(player, ...)
+	end, ...)
+
+	-- Sync CoreStats values
+	local pData = playerCache[player]
+	if pData then
+		PollenTools.SyncCoreStats(player)
+	end
+end)
+
+-- ClientSetUpListeners: Client signals it's ready for server-to-client events
+Events.ServerListen("ClientSetUpListeners", function(player)
+	print("[SERVER] " .. player.Name .. " has set up listeners")
+	-- Fire initial data to the client
+	pcall(function()
+		Events.ServerCall("ServerItemPackEvent", player, "Init", { Ready = true })
+	end)
+end)
+
+-- ClaimHive: Player claims a hive
+Events.ServerListen("ClaimHive", function(player, hiveId)
+	print("[SERVER] " .. player.Name .. " claimed hive " .. tostring(hiveId))
+	local pData = playerCache[player]
+	if pData then
+		pData.HiveSlot = hiveId or 1
+		pData.Honeycomb = pData.Honeycomb or {}
+		-- Ensure Honeycomb only contains nested bee tables, not metadata
+		for k, v in pairs(pData.Honeycomb) do
+			if type(v) ~= "table" then
+				pData.Honeycomb[k] = nil
 			end
 		end
 	end
+end)
 
-	return v1
-end
-function t.GetGiftedMap(p1, p2) --[[ GetGiftedMap | Line: 180 ]]
-	if not p1 then
-		return nil
-	end
-
-	local HoneycombTools = require(game.ReplicatedStorage.HoneycombTools)
-
-	HoneycombTools.GetSizeX()
-	HoneycombTools.GetSizeY()
-
-	local BeeStats = require(game.ReplicatedStorage.BeeStats)
-	local t = {}
-
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			if not t[v2.Type] and BeeStats.HasTrait(v2, "Gifted") then
-				local v1 = true
-
-				if p2 then
-					local v22 = require(game.ServerStorage.BeeManager):BeeByFile(v2)
-
-					if not v22 or v22.DisableCounter > 0 then
-						v1 = nil
-					end
-				end
-
-				t[v2.Type] = v1
-			end
+-- PlayerHiveCommand: Hive commands (spawn bee, etc.)
+Events.ServerListen("PlayerHiveCommand", function(player, command, ...)
+	local pData = playerCache[player]
+	if not pData then return end
+	-- Handle various hive commands
+	if command == "SpawnBee" then
+		if not pData.Bees then pData.Bees = {} end
+		if #pData.Bees < 25 then
+			table.insert(pData.Bees, { Type = "Basic", Level = 1 })
 		end
 	end
+end)
 
-	return t
+-- SelectNPCOption: Player selects an NPC dialog option
+Events.ServerListen("SelectNPCOption", function(player, npcName, optionIndex)
+	local pData = playerCache[player]
+	if pData and pData.NPCs and pData.NPCs[npcName] then
+		pData.NPCs[npcName].Event = (pData.NPCs[npcName].Event or 1) + 1
+	end
+end)
+
+-- PlayerFullyLoaded: Client signals it's fully loaded
+Events.ServerListen("PlayerFullyLoaded", function(player)
+	print("[SERVER] " .. player.Name .. " is fully loaded!")
+end)
+
+-- ItemUseCommand: Player uses an item
+Events.ServerListen("ItemUseCommand", function(player, itemType, ...)
+	local pData = playerCache[player]
+	if not pData then return end
+	-- Handle item usage
+end)
+
+-- PlayerSettingsEvent: Player changed a setting
+Events.ServerListen("PlayerSettingsEvent", function(player, setting, value)
+	local pData = playerCache[player]
+	if pData and pData.Settings then
+		pData.Settings[setting] = value
+	end
+end)
+
+-- PlayerActivesCommand: Player activated an active ability
+Events.ServerListen("PlayerActivesCommand", function(player, ...)
+	-- Handle active ability commands
+end)
+
+-- PlayerSprinklerCommand: Sprinkler commands
+Events.ServerListen("PlayerSprinklerCommand", function(player, ...)
+	-- Handle sprinkler commands
+end)
+
+-- PlayerQuickbarEvent: Quickbar slot changes
+Events.ServerListen("PlayerQuickbarEvent", function(player, ...)
+	-- Handle quickbar changes
+end)
+
+-- BeeConversionLink: Bee conversion link
+Events.ServerListen("BeeConversionLink", function(player, ...)
+	-- Handle bee conversion
+end)
+
+-- =========================================================================
+-- PLAYER JOIN / LEAVE
+-- =========================================================================
+
+local function setupCoreStats(player, baseData)
+	-- leaderstats for the player list
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local honeyVal = Instance.new("NumberValue")
+	honeyVal.Name = "Honey"
+	honeyVal.Value = baseData.Honey or 10000
+	honeyVal.Parent = leaderstats
+
+	-- CoreStats folder
+	local coreStats = Instance.new("Folder")
+	coreStats.Name = "CoreStats"
+	coreStats.Parent = player
+
+	local statsToCreate = {
+		{"Honey", baseData.Honey or 10000},
+		{"Pollen", 0},
+		{"Capacity", baseData.Capacity or 200},
+		{"TotalHoney", baseData.TotalHoney or 10000},
+		{"DailyHoney", baseData.DailyHoney or 10000},
+		{"Tickets", baseData.Tickets or 10}
+	}
+
+	for _, data in ipairs(statsToCreate) do
+		local val = Instance.new("NumberValue")
+		val.Name = data[1]
+		val.Value = data[2]
+		val.Parent = coreStats
+	end
 end
-function t.CountUniqueGifteds(p1) --[[ CountUniqueGifteds | Line: 232 | Upvalues: t (copy) ]]
-	local v1 = t.GetGiftedMap(p1)
 
-	if not v1 then
-		return 0
-	end
+local function onPlayerAdded(player)
+	-- Load player data
+	local _, baseData = DataStoreModule.Load("BSS_Alpha_Save_v1", player.UserId)
+	baseData.EquippedParachute = baseData.EquippedParachute or "None"
+	playerCache[player] = baseData
 
-	local count = 0
+	-- Set up CoreStats and leaderstats
+	setupCoreStats(player, baseData)
 
-	for k, v in pairs(v1) do
-		count = count + 1
-	end
+	-- Create OOP player object
+	pcall(function()
+		activePlayerObjects[player] = PlayerTools.new(player)
+	end)
 
-	return count
-end
-function t.HasGiftedType(p1, p2) --[[ HasGiftedType | Line: 252 ]]
-	if not p1 then
-		return false
-	end
+	-- Equip gear when character spawns
+	player.CharacterAdded:Connect(function(character)
+		task.wait(1.5)
 
-	local BeeStats = require(game.ReplicatedStorage.BeeStats)
-
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			if v2.Type == p2 and BeeStats.HasTrait(v2, "Gifted") then
-				return true
-			end
+		-- Equip collector tool and backpack via PlayerTools OOP
+		if activePlayerObjects[player] and activePlayerObjects[player].EquipGear then
+			pcall(function() activePlayerObjects[player]:EquipGear() end)
 		end
-	end
 
-	return false
-end
-function t.ForEachBee(p1, p2) --[[ ForEachBee | Line: 273 ]]
-	if not p1 then
-		return false
-	end
-
-	require(game.ReplicatedStorage.BeeStats)
-
-	for k, v in pairs(p1) do
-		for k2, v2 in pairs(v) do
-			if v2 then
-				p2(v2)
-			end
-		end
-	end
-
-	return false
+		-- Sync CoreStats with PollenTools
+		pcall(function() PollenTools.SyncCoreStats(player) end)
+	end)
 end
 
-return t
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Handle players already in the game
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, player)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	local pData = playerCache[player]
+	if pData then
+		pcall(function() DataStoreModule.WaitUntilSave("BSS_Alpha_Save_v1", player.UserId, pData) end)
+	end
+	playerCache[player] = nil
+	if activePlayerObjects[player] then
+		pcall(function() activePlayerObjects[player]:Destroy() end)
+		activePlayerObjects[player] = nil
+	end
+end)
+
+print("[SERVER BOOT] BSS Server Engine initialized. Loading screen will close naturally when client receives stats.")
