@@ -1,23 +1,23 @@
--- Script Path: game:GetService("ReplicatedStorage").ItemPackages.Collector
--- Took 0.32s to decompile.
+-- Script Path: game:GetService("ReplicatedStorage").ItemPackages.Backpack
+-- Took 0.7s to decompile.
 -- Executor: Velocity (1.1.1)
 
 -- https://lua.expert/
 local t = {}
-local Collectors = require(game.ReplicatedStorage.Collectors)
+local Backpacks = require(game.ReplicatedStorage.Backpacks)
 local Events = require(game.ReplicatedStorage.Events)
 local AlertBoxes = require(game.ReplicatedStorage.AlertBoxes)
 
-function t.Exists(p1) --[[ Exists | Line: 10 | Upvalues: Collectors (copy) ]]
+function t.Exists(p1) --[[ Exists | Line: 11 | Upvalues: Backpacks (copy) ]]
 	local Type = p1.Type
 
 	if Type == nil then
 		return false
 	end
 
-	return Collectors.Exists(Type)
+	return Backpacks.Exists(Type)
 end
-function t.PlayerHas(p1, p2) --[[ PlayerHas | Line: 16 | Upvalues: t (copy) ]]
+function t.PlayerHas(p1, p2) --[[ PlayerHas | Line: 17 | Upvalues: t (copy) ]]
 	if not p2 then
 		return false
 	end
@@ -26,13 +26,13 @@ function t.PlayerHas(p1, p2) --[[ PlayerHas | Line: 16 | Upvalues: t (copy) ]]
 		return false
 	end
 
-	local Collectors = p2.Collectors
+	local Backpacks = p2.Backpacks
 
-	if Collectors == nil then
+	if Backpacks == nil then
 		return false
 	end
 
-	for i, v in ipairs(Collectors) do
+	for i, v in ipairs(Backpacks) do
 		if v == p1.Type then
 			return true
 		end
@@ -40,67 +40,38 @@ function t.PlayerHas(p1, p2) --[[ PlayerHas | Line: 16 | Upvalues: t (copy) ]]
 
 	return false
 end
-function t.Title(p1) --[[ Title | Line: 27 | Upvalues: t (copy) ]]
+function t.Title(p1) --[[ Title | Line: 28 | Upvalues: t (copy) ]]
 	if t.Exists(p1) then
 		return p1.Type
 	end
 
 	return nil
 end
-function t.Description(p1) --[[ Description | Line: 32 | Upvalues: t (copy), Collectors (copy) ]]
+function t.Description(p1) --[[ Description | Line: 33 | Upvalues: t (copy), Backpacks (copy) ]]
 	if t.Exists(p1) then
-		return Collectors.GetStat(p1.Type, "Description")
+		return Backpacks.GetStat(p1.Type, "Description")
 	end
 
 	return nil
 end
-function t.CanGive(p1, p2) --[[ CanGive | Line: 37 | Upvalues: t (copy) ]]
+function t.GetCost(p1, p2) --[[ GetCost | Line: 38 | Upvalues: t (copy), Backpacks (copy) ]]
+	if t.Exists(p1) then
+		return {
+			Category = "Honey",
+			Amount = Backpacks.GetStat(p1.Type, "Cost")
+		}
+	end
+
+	return nil
+end
+function t.CanGive(p1, p2) --[[ CanGive | Line: 44 | Upvalues: t (copy) ]]
 	if t.Exists(p1) then
 		return not t.PlayerHas(p1, p2)
 	end
 
 	return false
 end
-function t.CheckRequirements(p1, p2) --[[ CheckRequirements | Line: 43 | Upvalues: Collectors (copy) ]]
-	local v1 = Collectors.Get(p1.Type)
-
-	if v1.Restricted then
-		return false
-	end
-
-	return (not v1.Requirements or require(game.ReplicatedStorage.StatTools).CheckReqs(p2, v1.Requirements)) and true or false
-end
-function t.GetCost(p1, p2) --[[ GetCost | Line: 71 | Upvalues: t (copy), Collectors (copy) ]]
-	if not t.Exists(p1) then
-		return nil
-	end
-
-	if require(game.ReplicatedFirst.PlaceInfo).PlaceType == "Classic Minigame" then
-		return nil
-	end
-
-	local t2 = {
-		Category = "Honey",
-		Amount = Collectors.GetStat(p1.Type, "Cost")
-	}
-
-	if not Collectors.Get(p1.Type).Ingredients then
-		return t2
-	end
-
-	local t3 = { t2 }
-
-	for i, v in ipairs(Collectors.Get(p1.Type).Ingredients) do
-		table.insert(t3, {
-			Category = "Eggs",
-			Type = v[1],
-			Amount = v[2]
-		})
-	end
-
-	return t3
-end
-function t.Give(p1, p2, p3) --[[ Give | Line: 150 | Upvalues: t (copy), Events (copy), AlertBoxes (copy) ]]
+function t.Give(p1, p2, p3) --[[ Give | Line: 49 | Upvalues: t (copy), Events (copy), AlertBoxes (copy) ]]
 	if not p2 then
 		return false
 	end
@@ -113,7 +84,7 @@ function t.Give(p1, p2, p3) --[[ Give | Line: 150 | Upvalues: t (copy), Events (
 		return false
 	end
 
-	table.insert(p2.Collectors, p1.Type)
+	table.insert(p2.Backpacks, p1.Type)
 
 	if p1.Mute then
 		return true
@@ -127,23 +98,16 @@ function t.Give(p1, p2, p3) --[[ Give | Line: 150 | Upvalues: t (copy), Events (
 
 	return true
 end
-function t.CanPurchase(p1, p2, p3) --[[ CanPurchase | Line: 174 | Upvalues: t (copy) ]]
-	if t.Exists(p1) then
-		return t.CheckRequirements(p1, p2, p3) and true or false
-	end
-
-	return false
-end
-function t.Take(p1, p2) --[[ Take | Line: 188 | Upvalues: t (copy) ]]
+function t.Take(p1, p2) --[[ Take | Line: 74 | Upvalues: t (copy) ]]
 	if not t.PlayerHas(p1, p2) then
 		return false
 	end
 
-	local Collectors = p2.Collectors
+	local Backpacks = p2.Backpacks
 
-	for i, v in ipairs(Collectors) do
+	for i, v in ipairs(Backpacks) do
 		if v == p1.Type then
-			table.remove(Collectors, i)
+			table.remove(Backpacks, i)
 
 			return true
 		end
@@ -152,7 +116,7 @@ function t.Take(p1, p2) --[[ Take | Line: 188 | Upvalues: t (copy) ]]
 	return false
 end
 
-local function unequipModel(p1, p2) --[[ unequipModel | Line: 202 ]]
+local function unequipModel(p1, p2) --[[ unequipModel | Line: 87 ]]
 	if p2 == nil then
 		return true
 	end
@@ -163,9 +127,9 @@ local function unequipModel(p1, p2) --[[ unequipModel | Line: 202 ]]
 		return true
 	end
 
-	local v1 = Character:FindFirstChild(p1, true)
+	local v1 = Character:FindFirstChild(p1)
 
-	if not v1 then
+	if v1 == nil then
 		return true
 	end
 
@@ -174,14 +138,14 @@ local function unequipModel(p1, p2) --[[ unequipModel | Line: 202 ]]
 	return true
 end
 
-local function equipModel(p1, p2) --[[ equipModel | Line: 233 | Upvalues: Collectors (copy) ]]
+local function equipModel(p1, p2) --[[ equipModel | Line: 96 | Upvalues: Backpacks (copy) ]]
 	if p2 ~= nil then
 		local Character = p2.Character
 
 		if Character ~= nil then
-			local v1 = Character:FindFirstChild(p1, true)
+			local v1 = Character:FindFirstChild(p1)
 
-			if v1 then
+			if v1 ~= nil then
 				v1:Destroy()
 			end
 		end
@@ -197,27 +161,29 @@ local function equipModel(p1, p2) --[[ equipModel | Line: 233 | Upvalues: Collec
 		return true
 	end
 
-	if Character:FindFirstChildOfClass("Humanoid") ~= nil then
-		Collectors.Make(p1).Parent = Character
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+	if Humanoid == nil then
+		return true
 	end
 
-	return true
+	Humanoid:AddAccessory((Backpacks.Make(p1)))
 end
 
-function t.Equippable(p1) --[[ Equippable | Line: 255 | Upvalues: t (copy) ]]
+function t.Equippable(p1) --[[ Equippable | Line: 113 | Upvalues: t (copy) ]]
 	return t.Exists(p1) and true or false
 end
-function t.PlayerHasEquipped(p1, p2) --[[ PlayerHasEquipped | Line: 262 | Upvalues: t (copy) ]]
+function t.PlayerHasEquipped(p1, p2) --[[ PlayerHasEquipped | Line: 118 | Upvalues: t (copy) ]]
 	if not t.Exists(p1) then
 		return false
 	end
 
-	return p1.Type == p2.EquippedCollector
+	return p1.Type == p2.EquippedBackpack
 end
-function t.PurchaseEffect(p1, p2, p3) --[[ PurchaseEffect | Line: 276 | Upvalues: t (copy) ]]
+function t.PurchaseEffect(p1, p2, p3) --[[ PurchaseEffect | Line: 130 | Upvalues: t (copy) ]]
 	return t.Equip(p1, p2, p3)
 end
-function t.Unequip(p1, p2, p3, p4, p5) --[[ Unequip | Line: 291 | Upvalues: t (copy), Collectors (copy) ]]
+function t.Unequip(p1, p2, p3) --[[ Unequip | Line: 137 | Upvalues: t (copy) ]]
 	if not p2 then
 		return false
 	end
@@ -228,29 +194,11 @@ function t.Unequip(p1, p2, p3, p4, p5) --[[ Unequip | Line: 291 | Upvalues: t (c
 
 	local Type = p1.Type
 
-	if p2.EquippedCollector ~= Type then
+	if p2.EquippedBackpack ~= Type then
 		return false
 	end
 
-	p2.EquippedCollector = "None"
-
-	local v1 = Collectors.Get(p1.Type)
-
-	if p3 then
-		if not p5 and v1.BuffsToRemoveOnUnequip then
-			local PlayerTools = require(game.ServerStorage.PlayerTools)
-
-			for i, v in ipairs(v1.BuffsToRemoveOnUnequip) do
-				PlayerTools.RemoveBuff(p3, v)
-			end
-		end
-	else
-		if v1.OnClientUnequip then
-			v1.OnClientUnequip()
-		end
-
-		require(game.ReplicatedStorage.Collectors.LocalCollect).StopAnim()
-	end
+	p2.EquippedBackpack = "None"
 
 	if p3 == nil then
 		return true
@@ -262,17 +210,17 @@ function t.Unequip(p1, p2, p3, p4, p5) --[[ Unequip | Line: 291 | Upvalues: t (c
 		return true
 	end
 
-	local v2 = Character:FindFirstChild(Type, true)
+	local v1 = Character:FindFirstChild(Type)
 
-	if not v2 then
+	if v1 == nil then
 		return true
 	end
 
-	v2:Destroy()
+	v1:Destroy()
 
 	return true
 end
-function t.Equip(p1, p2, p3) --[[ Equip | Line: 336 | Upvalues: t (copy), Collectors (copy), Events (copy) ]]
+function t.Equip(p1, p2, p3) --[[ Equip | Line: 152 | Upvalues: t (copy), Backpacks (copy) ]]
 	if not p2 then
 		return false
 	end
@@ -285,101 +233,99 @@ function t.Equip(p1, p2, p3) --[[ Equip | Line: 336 | Upvalues: t (copy), Collec
 		return false
 	end
 
-	if not t.CheckRequirements(p1, p2) then
-		return false
-	end
-
 	local Type = p1.Type
-	local EquippedCollector = p2.EquippedCollector
+	local EquippedBackpack = p2.EquippedBackpack
 
-	if EquippedCollector ~= Type and EquippedCollector ~= "None" then
-		t.Unequip({
-			Type = EquippedCollector
-		}, p2, p3, Type)
-	end
-
-	if p3 then
-		if EquippedCollector == Type then
-			if p3 ~= nil then
-				local Character = p3.Character
-
-				if Character ~= nil then
-					local v1 = Character:FindFirstChild(Type, true)
-
-					if v1 then
-						v1:Destroy()
-					end
-				end
-			end
-
-			if p3 == nil then
-				return true
-			end
-
+	if p3 and EquippedBackpack == Type then
+		if p3 ~= nil then
 			local Character = p3.Character
 
-			if Character == nil or Character:FindFirstChildOfClass("Humanoid") == nil then
-				return true
+			if Character ~= nil then
+				local v1 = Character:FindFirstChild(Type)
+
+				if v1 ~= nil then
+					v1:Destroy()
+				end
 			end
+		end
 
-			Collectors.Make(Type).Parent = Character
-
+		if p3 == nil then
 			return true
 		end
 
-		local v2 = Collectors.Get(p1.Type)
+		local Character = p3.Character
 
-		if v2.BuffsToRemoveOnEquip then
-			local PlayerTools = require(game.ServerStorage.PlayerTools)
-
-			for i, v in ipairs(v2.BuffsToRemoveOnEquip) do
-				PlayerTools.RemoveBuff(p3, v)
-			end
+		if Character == nil then
+			return true
 		end
 
-		p2.EquippedCollector = Type
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+		if Humanoid == nil then
+			return true
+		end
+
+		Humanoid:AddAccessory((Backpacks.Make(Type)))
+	else
+		if p3 and EquippedBackpack ~= "None" then
+			t.Unequip({
+				Type = EquippedBackpack
+			}, p2, p3)
+		end
+
+		p2.EquippedBackpack = Type
+
+		if not p3 then
+			return true
+		end
+
+		local v2 = require(game.ServerStorage.PollenTools).GetCapacity(p3)
+
+		if v2 < p2.Pollen then
+			p2.Pollen = v2
+
+			if p3 ~= nil then
+				local leaderstats = p3.leaderstats
+				local Pollen2 = p3.leaderstats:FindFirstChild("Pollen")
+
+				if Pollen2 ~= nil then
+					Pollen2.Value = p2.Pollen
+				end
+			end
+		end
 
 		if p3 ~= nil then
 			local Character = p3.Character
 
 			if Character ~= nil then
-				local v3 = Character:FindFirstChild(Type, true)
+				local v3 = Character:FindFirstChild(Type)
 
-				if v3 then
+				if v3 ~= nil then
 					v3:Destroy()
 				end
 			end
 		end
 
-		if p3 ~= nil then
-			local Character = p3.Character
-
-			if Character ~= nil and Character:FindFirstChildOfClass("Humanoid") ~= nil then
-				Collectors.Make(Type).Parent = Character
-			end
+		if p3 == nil then
+			return true
 		end
 
-		Events.ServerCall("ServerItemPackEvent", p3, "Equip", p1)
-	else
-		p2.EquippedCollector = Type
+		local Character = p3.Character
 
-		local v4 = Collectors.Get(Type)
-
-		if v4.OnClientEquip then
-			v4.OnClientEquip()
+		if Character == nil then
+			return true
 		end
 
-		require(game.ReplicatedStorage.Collectors.LocalCollect).PlayIdleAnim()
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+		if Humanoid == nil then
+			return true
+		end
+
+		Humanoid:AddAccessory((Backpacks.Make(Type)))
 	end
 
 	return true
-end
-function t.PurchaseRequirements(p1, p2) --[[ PurchaseRequirements | Line: 401 | Upvalues: t (copy), Collectors (copy) ]]
-	if t.Exists(p1) then
-		return Collectors.Get(p1.Type).Requirements
-	end
-
-	return nil
 end
 
 return t
