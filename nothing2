@@ -1,265 +1,328 @@
--- Script Path: game:GetService("ReplicatedStorage").Gui.BackpackGui
--- Took 0.16s to decompile.
--- Executor: Velocity (1.1.1)
+-- =========================================================================
+-- ОЧИЩЕННЫЙ СЕРВЕРНЫЙ МОНОЛИТ БСС — ПРЕДОСТАВЛЯЕМ ВСЁ КЛИЕНТУ (ВЕРСИЯ 621)
+-- =========================================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
--- https://lua.expert/
-local t = {}
-local v1 = nil
-local v2 = Vector2.new(0.5, 0.5)
+-- Подключаем серверные ядра из ServerStorage
+local DataStoreModule = require(ServerStorage:WaitForChild("DataStore"))
+local PlayerTools = require(ServerStorage:WaitForChild("PlayerTools"))
+local PollenTools = require(ServerStorage:WaitForChild("PollenTools"))
 
-function GetBoundingBox(p1, p2) --[[ GetBoundingBox | Line: 14 ]]
-	if type(p1) == "userdata" then
-		p1 = p1:GetDescendants()
+local playerCache = {}
+local activePlayerObjects = {}
+local hivesCache = {} -- Кэш ульев на самом верху скрипта!
+
+-- Сетевой модуль Онетта
+local eventsModule = ReplicatedStorage:WaitForChild("Events")
+
+local function getCanonicalRemote(name, className)
+	local target = eventsModule:FindFirstChild(name)
+	if target and not target:IsA(className) then
+		target:Destroy()
+		target = nil
 	end
-
-	if not p2 then
-		p2 = CFrame.new()
+	if not target then
+		target = Instance.new(className)
+		target.Name = name
+		target.Parent = eventsModule
 	end
-
-	local v3 = nil
-	local v4 = nil
-	local v5 = nil
-	local v6 = nil
-	local v7 = nil
-	local v8 = nil
-
-	for k, v in pairs(p1) do
-		if v:IsA("BasePart") then
-			if not v3 then
-				v3 = v.Position.X
-				v4 = v.Position.Y
-				v5 = v.Position.Z
-				v6 = v3
-				v7 = v4
-				v8 = v5
-			end
-
-			local v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20 = p2:toObjectSpace(v.CFrame):components()
-			local v21 = math.abs(v12)
-			local v22 = math.abs(v13)
-			local v23 = math.abs(v14)
-			local v24 = math.abs(v15)
-			local v25 = math.abs(v16)
-			local v26 = math.abs(v17)
-			local v27 = math.abs(v18)
-			local v28 = math.abs(v19)
-			local v29 = math.abs(v20)
-			local x = v.Size.x
-			local y = v.Size.y
-			local z = v.Size.z
-			local v30 = v21 * x + v22 * y + v23 * z
-			local v31 = v24 * x + v25 * y + v26 * z
-			local v32 = v27 * x + v28 * y + v29 * z
-			local v33 = v9 - v30
-
-			if v33 < v3 then
-				v3 = v33
-			end
-
-			local v34 = v10 - v31
-
-			if v34 < v4 then
-				v4 = v34
-			end
-
-			local v35 = v11 - v32
-
-			if v35 < v5 then
-				v5 = v35
-			end
-
-			local v36 = v9 + v30
-
-			if v6 < v36 then
-				v6 = v36
-			end
-
-			local v37 = v10 + v31
-
-			if v7 < v37 then
-				v7 = v37
-			end
-
-			local v38 = v11 + v32
-
-			if v8 < v38 then
-				v8 = v38
-			end
-		end
-	end
-
-	if v3 then
-		return p2:toWorldSpace(CFrame.new((v3 + v6) / 2, (v4 + v7) / 2, (v5 + v8) / 2)), Vector3.new(v6 - v3, v7 - v4, v8 - v5)
-	end
-
-	return nil
+	return target
 end
 
-local t2 = {
-	SetX = function(p1, p2) --[[ Line: 58 | Upvalues: v2 (copy) ]]
-		p1.Icon.Position = UDim2.new(p2 + v2.X, 0, v2.Y, 0)
-	end,
-	DisplayInViewport = function(p1, p2) --[[ Line: 62 | Upvalues: v2 (copy) ]]
-		if p1.ViewportTarget == p2 then
-			return
-		end
+-- Инициализируем ремуты строго внутри самого модуля Events
+local ToolCollect = getCanonicalRemote("ToolCollect", "RemoteEvent")
+local InteractNPC = getCanonicalRemote("InteractNPC", "RemoteEvent")
+local ClientSetUpListeners = getCanonicalRemote("ClientSetUpListeners", "RemoteEvent")
+local ServerItemPackEvent = getCanonicalRemote("ServerItemPackEvent", "RemoteEvent")
+local HiveClaimedRe = getCanonicalRemote("HiveClaimed", "RemoteEvent")
+local UpdateHiveRe = getCanonicalRemote("UpdateHive", "RemoteEvent")
+local UpdateHiveGuiRe = getCanonicalRemote("UpdateHiveGui", "RemoteEvent")
+local UpdateHiveGuiRe2 = getCanonicalRemote("UpdateHiveGui2", "RemoteEvent")
+local UpdateHiveGuiRe3 = getCanonicalRemote("UpdateHiveGui3", "RemoteEvent")
+local UpdateHiveGuiRe4 = getCanonicalRemote("UpdateHiveGui4", "RemoteEvent")
+local UpdateHiveGuiRe5 = getCanonicalRemote("UpdateHiveGui5", "RemoteEvent")
+local UpdateHiveGuiRe6 = getCanonicalRemote("UpdateHiveGui6", "RemoteEvent")
 
-		p1.ViewportTarget = p2
+-- Выделенные эвенты экипировки Онетта
+local EquipCollectorRe = getCanonicalRemote("EquipCollector", "RemoteEvent")
+local EquipBackpackRe = getCanonicalRemote("EquipBackpack", "RemoteEvent")
+local BoostMarketRe = getCanonicalRemote("BoostMarket", "RemoteEvent")
+local EquipHiveRe = getCanonicalRemote("EquipHive", "RemoteEvent")
+local EquipHive2Re = getCanonicalRemote("EquipHive2", "RemoteEvent")
+local EquipHive3Re = getCanonicalRemote("EquipHive3", "RemoteEvent")
+local EquipHive4Re = getCanonicalRemote("EquipHive4", "RemoteEvent")
+local EquipHive5Re = getCanonicalRemote("EquipHive5", "RemoteEvent")
+local EquipHive6Re = getCanonicalRemote("EquipHive6", "RemoteEvent")
+local BoostMarketRe2 = getCanonicalRemote("BoostMarketUpdate", "RemoteEvent")
 
-		local Viewport = p1.Viewport
+local RetrievePlayerStats = getCanonicalRemote("RetrievePlayerStats", "RemoteFunction")
+local RetrievePlayerStatSummary = getCanonicalRemote("RetrievePlayerStatSummary", "RemoteFunction")
+local RetrieveCachedPlayerStat = getCanonicalRemote("RetrieveCachedPlayerStat", "RemoteFunction")
+local RetrievePlayerStatsIntervalBackups = getCanonicalRemote("RetrievePlayerStatsIntervalBackups", "RemoteFunction")
+local BuyItemRf = getCanonicalRemote("BuyItem", "RemoteFunction")
+local RequestConversionRf = getCanonicalRemote("RequestConversion", "RemoteFunction")
+local ClaimHiveRf = getCanonicalRemote("ClaimHive", "RemoteFunction")
 
-		if not Viewport then
-			local ViewportFrame = Instance.new("ViewportFrame")
+-- Версия сервера для ClientGuiManager
+local ServerVersionRf = getCanonicalRemote("ServerVersion", "RemoteFunction")
+ServerVersionRf.OnServerInvoke = function(player)
+	return 621
+end
 
-			ViewportFrame.AnchorPoint = v2
-			ViewportFrame.Size = UDim2.new(1, 0, 1, 0)
-			ViewportFrame.Position = UDim2.new(v2.X, 0, v2.Y, 0)
-			ViewportFrame.BackgroundColor3 = Color3.new(0/255, 0/255, 0/255)
-			ViewportFrame.BorderSizePixel = 0
-			ViewportFrame.BackgroundTransparency = 1
-			ViewportFrame.Parent = p1.Icon
-			p1.Viewport = ViewportFrame
+-- Эмуляция пингов сессии
+local PingSessionRf = getCanonicalRemote("PingSession", "RemoteFunction") or getCanonicalRemote("Heartbeat", "RemoteFunction")
+if PingSessionRf and PingSessionRf:IsA("RemoteFunction") then
+	PingSessionRf.OnServerInvoke = function(player) return true end
+end
 
-			local Camera = Instance.new("Camera")
+-- =========================================================================
+-- РОЖДЕНИЕ АНАТОМИИ ИГРОКА СТРОГО ПО СКРИНШОТУ ИЗ DEX (МЁД В 0!)
+-- =========================================================================
+Players.PlayerAdded:Connect(function(player)
+	local baseData = DataStoreModule.NewPlayerData()
+	baseData.Honey = 0
+	baseData.honey = 0
+	baseData.Pollen = 0
+	baseData.pollen = 0
+	baseData.Capacity = 200
+	baseData.TotalHoney = 0
+	baseData.DailyHoney = 0
+	baseData.Tickets = 0
 
-			Camera.FieldOfView = 30
-			ViewportFrame.CurrentCamera = Camera
-			Camera.Parent = ViewportFrame
-			Viewport = ViewportFrame
-		end
+	-- [ВЫЖИГАЕМ АБУЗУ]: Выставляем параметры в чистый nil/пустоту, 
+	-- чтобы сработал Онеттовский авто-фоллбэк на Scooper и Pouch на клиенте!
+	baseData.Gear = nil
+	baseData.EquippedCollector = nil
+	baseData.EquippedBackpack = nil
+	baseData.Eggs = { ["BasicEgg"] = 1, ["Basic Egg"] = 1 }
+	playerCache[player] = baseData
 
-		local v1 = p2:Clone()
+	-- leaderstats для правого списка игроков
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats" 
+	leaderstats.Parent = player
 
-		p1.ViewportDummy = v1
+	local honeyVal = Instance.new("NumberValue") 
+	honeyVal.Name = "Honey" 
+	honeyVal.Value = 0 
+	honeyVal.Parent = leaderstats
+	-- Запускаем ООП-механику шмоток Онетта
+	pcall(function() activePlayerObjects[player] = PlayerTools.new(player) end)
 
-		if v1:IsA("BasePart") then
-			local Model = Instance.new("Model")
+	-- МОНТИРУЕМ ПАПКИ И РЕШЁТКИ В МОМЕНТ СПАВНА ПЕРСОНАЖА (СТРОГО ПО СКРИНШОТУ DEX)
+	player.CharacterAdded:Connect(function(character)
+		print("📦 [DEX ENGINE] Монтируем анатомию игрока строго по скриншоту...")
 
-			Model.PrimaryPart = v1
-			v1.Parent = Model
-			v1 = Model
-		elseif v1:IsA("Tool") then
-			local Model = Instance.new("Model")
+		local coreStats = player:FindFirstChild("CoreStats") or Instance.new("Folder")
+		coreStats.Name = "CoreStats"
+		coreStats.Parent = player
 
-			v1.Parent = Model
-
-			if v1:FindFirstChild("BoundingBox") then
-				Model.PrimaryPart = v1:FindFirstChild("BoundingBox")
-			else
-				Model.PrimaryPart = v1:FindFirstChild("Handle")
-			end
-
-			v1 = Model
-		end
-
-		if not v1:IsA("Model") then
-			local v22 = error
-
-			v22("cannot display type " .. tostring((typeof(v1))) .. " in backpack button viewport")
-		end
-
-		local v4, v5, _, v6, v7, v8, v9, v10, v11, v12
-
-		if not v1.PrimaryPart then
-			error("must set a primary part to all models to use in backpack button viewport")
-		end
-
-		v1:GetPrimaryPartCFrame()
-		v4, v5 = GetBoundingBox(v1)
-		print(p2.Name .. " oSize: " .. tostring(v5))
-		_, v6 = v1:GetBoundingBox()
-		v7 = -(Vector3.new(-1, 0, 2)).Unit
-		v8 = v6.Y
-		v9 = v6.Y
-		v10 = v6.Y
-		v11 = v7 * Vector3.new(v8, v9, v10) * 3.14
-		v12 = CFrame.new(v4.Position + v11, v4.Position)
-		Viewport.CurrentCamera.CFrame = v12
-		v1.Parent = p1.Viewport
-	end
-}
-local t3 = {
-	ArrangeButtons = function(p1) --[[ Line: 169 | Upvalues: v2 (copy) ]]
-		local v1 = #p1.Buttons
-
-		if v1 <= 0 then
-			return
-		end
-
-		local v22 = 1 + p1.StrideX
-		local v4 = v2.X + (v1 + (v1 - 1) * p1.StrideX) * -0.5
-
-		for i, v in ipairs(p1.Buttons) do
-			v:SetX(v4 + v22 * (i - 1))
-		end
-	end,
-	MakeButton = function(p1) --[[ Line: 193 | Upvalues: v2 (copy), t2 (copy) ]]
-		local ImageButton = Instance.new("ImageButton")
-
-		ImageButton.BackgroundTransparency = 0.5
-		ImageButton.BorderSizePixel = 0
-		ImageButton.AnchorPoint = v2
-		ImageButton.Size = UDim2.new(1, 0, 1, 0)
-		ImageButton.Parent = p1.Frame
-
-		local t = {
-			ViewportTarget = nil,
-			ViewportDummy = nil,
-			Viewport = nil,
-			Icon = ImageButton
+		-- Насыщаем NumberValue-решётками (#) строго внутрь CoreStats
+		local statsToCreate = {
+			{"Capacity", 200},
+			{"Honey", 0},
+			{"Pollen", 0}
 		}
-
-		for k, v in pairs(t2) do
-			t[k] = v
+		for _, data in ipairs(statsToCreate) do
+			local val = coreStats:FindFirstChild(data[1]) or Instance.new("NumberValue")
+			val.Name = data[1] -- Пофиксили индексы data[1] намертво! 😎🔥
+			val.Value = data[2]
+			val.Parent = coreStats
 		end
 
-		table.insert(p1.Buttons, t)
-		p1:ArrangeButtons()
+		local tradeConfig = player:FindFirstChild("TradeConfig") or Instance.new("Folder")
+		tradeConfig.Name = "TradeConfig"
+		tradeConfig.Parent = player
 
-		return t
-	end,
-	RemoveButton = function(p1, p2) --[[ Line: 222 ]] end
-}
-
-local function createGui(p1, p2) --[[ createGui | Line: 230 | Upvalues: t3 (copy) ]]
-	if not p2 then
-		p2 = {}
-	end
-
-	local t = {
-		Frame = p1,
-		StrideX = p2.StrixeX or 0.1,
-		Buttons = {}
-	}
-
-	for k, v in pairs(t3) do
-		t[k] = v
-	end
-
-	return t
-end
-
-function t.Init(p1) --[[ Init | Line: 263 | Upvalues: v1 (ref), createGui (copy) ]]
-	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
-
-	local BackpackGui = p1:WaitForChild("BackpackGui")
-
-	require(game.ReplicatedStorage.ScreenInfo).ResizeGui(BackpackGui)
-	v1 = createGui(BackpackGui)
-	task.spawn(function() --[[ Line: 275 | Upvalues: v1 (ref) ]]
-		task.wait()
-
-		local BasicCamBee = game.Workspace.BasicCamBee
-		local t = {}
-
-		for i, v in ipairs(game.ReplicatedStorage.CollectorModels:GetChildren()) do
-			table.insert(t, v)
+		local tradeFlags = {
+			{"CanTrade", true},
+			{"IsTrading", false},
+			{"RequestsEnabled", true}
+		}
+		for _, flag in ipairs(tradeFlags) do
+			local boolVal = tradeConfig:FindFirstChild(flag[1]) or Instance.new("BoolValue")
+			boolVal.Name = flag[1] -- Пофиксили индексы flag[1] намертво!
+			boolVal.Value = flag[2]
+			boolVal.Parent = tradeConfig
 		end
 
-		for i = 1, #t do
-			v1:MakeButton():DisplayInViewport(t[(i - 1) % #t + 1])
+		if not player:FindFirstChild("ActivatableTarget") then
+			local targetVal = Instance.new("ObjectValue")
+			targetVal.Name = "ActivatableTarget"
+			targetVal.Parent = player
 		end
+
+		local spawnVal = player:FindFirstChild("SpawnPos") or Instance.new("Vector3Value")
+		spawnVal.Name = "SpawnPos"
+		spawnVal.Value = character:GetPivot().Position
+		spawnVal.Parent = player
+
+		task.wait(1.5)
+
+		-- Синхронизируем базовые листенеры заставки
+		pcall(function()
+			ServerItemPackEvent:FireClient(player, "Give", {Category = "Eggs", Item = "BasicEgg", Amount = 1})
+			ServerItemPackEvent:FireClient(player, "SetupListenersReady", {Ready = true})
+			ServerItemPackEvent:FireClient(player, "ReplicationReady", {Ready = true})
+		end)
 	end)
+end)
+-- =========================================================================
+-- 4. СЕТЕВЫЕ ИНВОКИ (ОТВЕЧАЮТ ЗА ОБНОВЛЕНИЕ ЦИФР НА ЭКРАНЕ ПРИ СБОРЕ)
+-- =========================================================================
+RetrievePlayerStats.OnServerInvoke = function(player)
+	return playerCache[player] or DataStoreModule.NewPlayerData()
 end
 
-return t
+RetrievePlayerStatSummary.OnServerInvoke = function(player)
+	local pData = playerCache[player]
+	return { Honey = pData.Honey, TotalHoney = pData.TotalHoney, DailyHoney = pData.DailyHoney, BeesDiscovered = 0, BadgesEarned = 0 }
+end
+
+RetrieveCachedPlayerStat.OnServerInvoke = function(player, statName)
+	local s = playerCache[player]
+	return s[statName] or 0
+end
+
+RetrievePlayerStatsIntervalBackups.OnServerInvoke = function(player)
+	local defaultPollen = { All = 0, Colors = { Red = 0, White = 0, Blue = 0 }, Zones = {}, ByTag = {}, ZoneColors = {} }
+	return { Day = { ID = 1, Stats = {}, Totals = { Honey = 0, honey = 0, FarmedHoney = 0, farmedHoney = 0, ChallengeHoney = 0, TotalBeesDiscovered = 0, TotalGiftedBeesDiscovered = 0, Pollen = defaultPollen, pollen = defaultPollen, ChallengePollen = defaultPollen, Kills = {} } } }
+end
+
+ClientSetUpListeners.OnServerEvent:Connect(function(player)
+	pcall(function() ServerItemPackEvent:FireClient(player, "SetupListenersReady", {Ready = true}) end)
+end)
+
+-- АВТОРИТЕТНЫЙ СБОР ПЫЛЬЦЫ С ОГРАНИЧЕНИЕМ CAPACITY РЮКЗАКА
+ToolCollect.OnServerEvent:Connect(function(player, ...)
+	local collectArgs = {...}
+	if PollenTools and PollenTools.CollectPollen then pcall(function() PollenTools.CollectPollen(player, table.unpack(collectArgs)) end) end
+
+	local pData = playerCache[player]
+	if pData and player:FindFirstChild("CoreStats") then
+		local currentCapacity = player.CoreStats:FindFirstChild("Capacity") and player.CoreStats.Capacity.Value or 200
+		pData.Pollen = math.min((pData.Pollen or 0) + 8, currentCapacity)
+
+		if player.CoreStats:FindFirstChild("Pollen") then player.CoreStats.Pollen.Value = pData.Pollen end
+		pcall(function() 
+			ServerItemPackEvent:FireClient(player, "Update", {Pollen = pData.Pollen, Honey = pData.Honey})
+			local FlowerRegen = eventsModule:FindFirstChild("FlowerRegen")
+			if FlowerRegen then FlowerRegen:FireClient(player, table.unpack(collectArgs)) end
+		end)
+	end
+end)
+
+InteractNPC.OnServerEvent:Connect(function(player, npcName, actionType)
+	local pData = playerCache[player]
+	if pData then
+		pData.NPCs = pData.NPCs or {} pData.NPCs[npcName] = pData.NPCs[npcName] or { Event = 1, Phase = "Start" }
+		pData.NPCs[npcName].Event = pData.NPCs[npcName].Event + 1
+		pData.Quests = pData.Quests or {} pData.Quests.Active = pData.Quests.Active or {}
+		if not pData.Quests.Active[npcName] then
+			pData.Quests.Active[npcName] = { Name = npcName .. "'s Starter Task", Progress = 0, Target = 200, Status = "Active" }
+			pcall(function() ServerItemPackEvent:FireClient(player, "QuestUpdate", {NPC = npcName, QuestData = pData.Quests.Active[npcName]}) end)
+		end
+	end
+end)
+
+RequestConversionRf.OnServerInvoke = function(player)
+	local pData = playerCache[player]
+	if pData and pData.Pollen > 0 then
+		local converted = pData.Pollen pData.Honey = pData.Honey + converted pData.Pollen = 0
+		if player.CoreStats:FindFirstChild("Honey") then player.CoreStats.Honey.Value = pData.Honey end
+		if player.CoreStats:FindFirstChild("Pollen") then player.CoreStats.Pollen.Value = 0 end
+		if player.leaderstats:FindFirstChild("Honey") then player.leaderstats.Honey.Value = pData.Honey end
+		pcall(function() ServerItemPackEvent:FireClient(player, "Update", {Pollen = 0, Honey = pData.Honey}) end)
+		return true
+	end
+	return false
+end
+
+-- КАНOНИЧНЫЙ МАГАЗИН: ПОКУПКА С EMIT-СИГНАЛАМИ
+BuyItemRf.OnServerInvoke = function(player, itemName, category, amount)
+	print("🛒 [Магазин] Запрос покупки: " .. tostring(itemName) .. " из категории: " .. tostring(category))
+	local pData = playerCache[player]
+	if not pData then return false end
+
+	if category == "Tools" or category == "Collectors" then
+		pData.EquippedCollector = itemName
+		pcall(function()
+			eventsModule.EquipCollector:FireClient(player, itemName)
+			ServerItemPackEvent:FireClient(player, "Update", {Honey = pData.Honey})
+		end)
+		return true
+	end
+
+	if category == "Backpacks" or category == "Bags" then
+		pData.EquippedBackpack = itemName
+		pcall(function()
+			eventsModule.EquipBackpack:FireClient(player, itemName)
+		end)
+		return true
+	end
+
+	if itemName == "BasicEgg" or itemName == "Basic Egg" or category == "Eggs" then
+		pData.Eggs = pData.Eggs or {} pData.Eggs["BasicEgg"] = (pData.Eggs["BasicEgg"] or 0) + 1
+		pcall(function() ServerItemPackEvent:FireClient(player, "Give", {Category = "Eggs", Item = "BasicEgg", Amount = 1}) end)
+		return true
+	end
+	return false
+end
+
+-- КАНOНИЧНЫЙ ДВИЖОК УЛЬЕВ HONEYCOMBS
+ClaimHiveRf.OnServerInvoke = function(player, hiveId)
+	if not hiveId then hiveId = 1 end
+	print("🐝 [Server Hive] Запрос занятия улья ID: " .. tostring(hiveId) .. " от " .. player.Name)
+
+	-- Защита от перехвата чужого улья
+	for otherPlayer, id in pairs(hivesCache) do 
+		if id == hiveId and otherPlayer ~= player then return false end 
+	end
+
+	local pData = playerCache[player]
+	if pData then
+		pData.Honeycomb = pData.Honeycomb or {}
+		pData.Honeycomb.Owner = player.Name 
+		pData.Honeycomb.HiveId = hiveId 
+		pData.Honeycomb.Bees = pData.Honeycomb.Bees or {}
+
+		if #pData.Honeycomb.Bees == 0 then 
+			table.insert(pData.Honeycomb.Bees, { Slot = 1, Type = "Basic", Level = 1, Style = "Normal" }) 
+		end
+
+		hivesCache[player] = hiveId
+
+		pcall(function()
+			HiveClaimedRe:FireAllClients(player, hiveId)
+			UpdateHiveRe:FireAllClients(hiveId, pData.Honeycomb)
+		end)
+
+		-- СИЛОВОЙ ЗЕРКАЛЬНЫЙ ВЫСТРЕЛ ПО ВЫДЕЛЕННЫМ КАНАЛАМ ОНЕТТА!
+		task.wait(0.5)
+		pcall(function()
+			-- Так как в датасторе теперь лежит легальный чистый nil, клиентский скрипт 
+			-- сам, дойдя до конца, выставит "Scooper" и "Pouch" по своим внутренним инитам!
+			local currentTool = pData.EquippedCollector or "Scooper"
+			local currentBackpack = pData.EquippedBackpack or "Pouch"
+
+			eventsModule.EquipCollector:FireClient(player, currentTool)
+			eventsModule.EquipBackpack:FireClient(player, currentBackpack)
+
+			ServerItemPackEvent:FireClient(player, "HiveInitReady", {HiveId = hiveId, Data = pData.Honeycomb})
+		end)
+		return true
+	end
+	return false
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	local pData = playerCache[player]
+	if pData then pcall(function() DataStoreModule.WaitUntilSave("BSS_Alpha_Save_v3", player.UserId, pData) end) end
+	if hivesCache[player] then local id = hivesCache[player] hivesCache[player] = nil pcall(function() UpdateHiveRe:FireAllClients(id, {Owner = nil, Bees = {}}) end) end
+	playerCache[player] = nil
+	if activePlayerObjects[player] then pcall(function() activePlayerObjects[player]:Destroy() end) activePlayerObjects[player] = nil end
+end)
+
+print("👑 [BSS AUTO-FALLBACK LIVE] Сетевой монолит очищен от шмоточной абузы на 100%!")
