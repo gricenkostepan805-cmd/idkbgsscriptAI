@@ -1,331 +1,305 @@
--- Script Path: game:GetService("ReplicatedStorage").ItemPackages.Backpack
--- Took 0.7s to decompile.
+-- Script Path: game:GetService("ReplicatedStorage").Gui.BoostMarketGui
+-- Took 0.29s to decompile.
 -- Executor: Velocity (1.1.1)
 
 -- https://lua.expert/
 local t = {}
-local Backpacks = require(game.ReplicatedStorage.Backpacks)
 local Events = require(game.ReplicatedStorage.Events)
-local AlertBoxes = require(game.ReplicatedStorage.AlertBoxes)
+local NumberCommas = require(game.ReplicatedStorage.NumberCommas)
+local TimeString = require(game.ReplicatedStorage.TimeString)
+local OsTime = require(game.ReplicatedStorage.OsTime)
+local t2 = {}
+local v1 = false
+local v2 = 0
+local v3 = nil
+local v4 = nil
+local v5 = nil
+local v6 = nil
+local v7 = nil
+local v8 = nil
+local t3 = {}
+local v9 = false
 
-function t.Exists(p1) --[[ Exists | Line: 11 | Upvalues: Backpacks (copy) ]]
-	local Type = p1.Type
-
-	if Type == nil then
-		return false
+function t.DeleteRows() --[[ DeleteRows | Line: 40 | Upvalues: t3 (ref) ]]
+	for i, v in ipairs(t3) do
+		v.Gui:Destroy()
 	end
 
-	return Backpacks.Exists(Type)
+	t3 = {}
 end
-function t.PlayerHas(p1, p2) --[[ PlayerHas | Line: 17 | Upvalues: t (copy) ]]
-	if not p2 then
-		return false
+function t.InitToLoadingScreen() --[[ InitToLoadingScreen | Line: 54 ]] end
+function t.GetCooldownRemaining() --[[ GetCooldownRemaining | Line: 60 | Upvalues: v8 (ref), OsTime (copy) ]]
+	if v8 then
+		local StatTools = require(game.ReplicatedStorage.StatTools)
+		local v3 = StatTools.GetLastCooldownTime(require(game.ReplicatedStorage.ClientStatCache):Get(), "BMBuy" .. v8) or 0
+
+		return 1800 - (OsTime() - v3)
 	end
 
-	if not t.Exists(p1) then
-		return false
+	error("cannot get cooldown remaining if no market")
+end
+function t.UpdateBuyButtons(p1) --[[ UpdateBuyButtons | Line: 85 | Upvalues: v8 (ref), t (copy), t2 (copy), t3 (ref), NumberCommas (copy), v9 (ref), Events (copy) ]]
+	if not v8 then
+		return nil
 	end
 
-	local Backpacks = p2.Backpacks
-
-	if Backpacks == nil then
-		return false
+	if not p1 then
+		p1 = t.GetCooldownRemaining()
 	end
 
-	for i, v in ipairs(Backpacks) do
-		if v == p1.Type then
-			return true
+	local ItemPackages = require(game.ReplicatedStorage.ItemPackages)
+	local v2 = require(game.ReplicatedStorage.ClientStatCache):Get()
+	local v3 = t2[v8]
+	local t4 = {}
+
+	for i, v in ipairs(t3) do
+		local v4, v5
+		local Boost = v.Boost
+		local v6 = nil
+
+		for i2, v7 in ipairs(v3.Boosts) do
+			if v7.Buff == Boost.Buff then
+				v.Boost = v7
+				v6 = v7
+
+				break
+			end
+		end
+
+		if v6 then
+			table.insert(t4, v)
+
+			local Gui = v.Gui
+
+			Gui.SoldLbl.Text = "Recently Sold: " .. NumberCommas(v6.Sales - 1)
+
+			local v7 = require(game.ReplicatedStorage.Buffs).Get(v6.Buff)
+
+			Gui.Icon.Image = v7.Icon
+
+			if v6.Change > 0 then
+				v4 = "+" .. v6.Change
+				v5 = Color3.fromRGB(24, 182, 43)
+			elseif v6.Change < 0 then
+				v4 = v6.Change
+				v5 = Color3.fromRGB(195, 53, 61)
+			else
+				v4, v5 = "-", Color3.fromRGB(92, 91, 98)
+			end
+
+			Gui.ChangeIconLbl.Text = v4
+			Gui.ChangeIconLbl.TextColor3 = v5
+
+			local v11 = math.max(1, 10 - (i - 1))
+
+			if v11 > 0 then
+				local v12 = v11 .. " Ticket"
+
+				if v11 > 1 then
+					v12 = v12 .. "s"
+				end
+
+				Gui.BuyButton.Text = "Buy For " .. v12 .. " and " .. NumberCommas(v6.Cost) .. " Honey"
+			else
+				Gui.BuyButton.Text = "Buy For " .. NumberCommas(v6.Cost) .. " Honey"
+			end
+
+			local t5 = {
+				Category = "Honey",
+				Amount = v6.Cost
+			}
+			local t6 = {
+				Category = "Eggs",
+				Type = "Ticket",
+				Amount = v11
+			}
+
+			local function playerCanAfford() --[[ playerCanAfford | Line: 158 | Upvalues: ItemPackages (copy), t5 (copy), v2 (copy), v11 (copy), t6 (copy) ]]
+				return ItemPackages.PlayerHas(t5, v2) and (if v11 <= 0 then true else ItemPackages.PlayerHas(t6, v2))
+			end
+
+			local BuyButton = Gui.BuyButton
+
+			BuyButton.MouseButton1Click:Connect(function() --[[ Line: 164 | Upvalues: v9 (ref), v6 (ref), t (ref), ItemPackages (copy), t5 (copy), v2 (copy), v11 (copy), t6 (copy), Events (ref), v8 (ref) ]]
+				if v9 then
+					return
+				end
+
+				v9 = true
+				({
+					Category = "Honey"
+				}).Amount = v6.Cost
+
+				if t.GetCooldownRemaining() <= 0 and (ItemPackages.PlayerHas(t5, v2) and (if v11 <= 0 then true else ItemPackages.PlayerHas(t6, v2))) then
+					Events.ClientCall("BoostMarketEvent", {
+						Action = "PurchaseBoost",
+						MarketName = v8,
+						Boost = v6.Buff
+					})
+					script.ChaChing:Play()
+				end
+
+				task.wait(0.2)
+				v9 = false
+			end)
+
+			if p1 <= 0 and (ItemPackages.PlayerHas(t5, v2) and (if v11 <= 0 then true else ItemPackages.PlayerHas(t6, v2))) then
+				BuyButton.BackgroundTransparency = 0
+				BuyButton.BackgroundColor3 = Color3.fromRGB(94, 255, 128)
+				BuyButton.BorderColor3 = Color3.fromRGB(99, 185, 120)
+				BuyButton.TextTransparency = 0
+				BuyButton.AutoButtonColor = true
+
+				continue
+			end
+
+			BuyButton.BackgroundTransparency = 0.5
+			BuyButton.BackgroundColor3 = Color3.fromRGB(201, 39, 28)
+			BuyButton.BorderColor3 = Color3.fromRGB(110, 45, 39)
+			BuyButton.TextTransparency = 0.5
+			BuyButton.AutoButtonColor = false
+		else
+			v.Gui:Destroy()
 		end
 	end
-
-	return false
 end
-function t.Title(p1) --[[ Title | Line: 28 | Upvalues: t (copy) ]]
-	if t.Exists(p1) then
-		return p1.Type
+function t.InitToMarket(p1) --[[ InitToMarket | Line: 218 | Upvalues: v8 (ref), t2 (copy), t (copy), Events (copy), v6 (ref), v7 (ref), v4 (ref), t3 (ref) ]]
+	if v8 == p1 then
+		return
 	end
 
-	return nil
+	local v1 = t2[p1]
+
+	t.DeleteRows()
+
+	if not v1 then
+		t.InitToLoadingScreen()
+		Events.ClientCall("BoostMarketEvent", {
+			Action = "FetchSummary",
+			MarketName = p1
+		})
+
+		return
+	end
+
+	v8 = p1
+
+	local v2 = require(game.ReplicatedStorage.AgeString)(require(game.ReplicatedStorage.OsTime)() - v1.LastUpdateTime, true)
+
+	v6.Text = "Last Updated:\n" .. (if v2 == "Newborn" then ">1 Hour Ago" else v2 .. " Ago")
+
+	local Buffs = require(game.ReplicatedStorage.Buffs)
+
+	require(game.ReplicatedStorage.ItemPackages)
+	require(game.ReplicatedStorage.ClientStatCache):Get()
+
+	for i, v in ipairs(v1.Boosts) do
+		local v42 = v7:Clone()
+
+		v42.TitleLbl.Text = i .. ") " .. v.Buff
+		v42.DescLbl.Text = Buffs.GetDesc(v.Buff, nil, true)
+		v42.Parent = v4
+		table.insert(t3, {
+			Boost = v,
+			Gui = v42
+		})
+	end
+
+	t.Update()
+
+	local Offset = v7.Size.Y.Offset
+	local v62 = 0.05 * Offset
+
+	for i, v in ipairs(t3) do
+		v.Gui.Position = UDim2.new(v7.Position.X.Scale, 0, 0, v62 + (i - 1) * (Offset + v62))
+	end
+
+	v4.CanvasSize = UDim2.new(1, 0, 0, #t3 * (Offset + v62) + v62)
 end
-function t.Description(p1) --[[ Description | Line: 33 | Upvalues: t (copy), Backpacks (copy) ]]
-	if t.Exists(p1) then
-		return Backpacks.GetStat(p1.Type, "Description")
-	end
-
-	return nil
+function t.IsOpen() --[[ IsOpen | Line: 314 | Upvalues: v1 (ref) ]]
+	return v1
 end
-function t.GetCost(p1, p2) --[[ GetCost | Line: 38 | Upvalues: t (copy), Backpacks (copy) ]]
-	if t.Exists(p1) then
-		return {
-			Category = "Honey",
-			Amount = Backpacks.GetStat(p1.Type, "Cost")
-		}
-	end
+function t.Update() --[[ Update | Line: 319 | Upvalues: t (copy), v5 (ref), TimeString (copy) ]]
+	local v1 = t.GetCooldownRemaining()
 
-	return nil
-end
-function t.CanGive(p1, p2) --[[ CanGive | Line: 44 | Upvalues: t (copy) ]]
-	if t.Exists(p1) then
-		return not t.PlayerHas(p1, p2)
-	end
-
-	return false
-end
-function t.Give(p1, p2, p3) --[[ Give | Line: 49 | Upvalues: t (copy), Events (copy), AlertBoxes (copy) ]]
-	if not p2 then
-		return false
-	end
-
-	if not t.Exists(p1) then
-		return false
-	end
-
-	if t.PlayerHas(p1, p2) then
-		return false
-	end
-
-	table.insert(p2.Backpacks, p1.Type)
-
-	if p1.Mute then
-		return true
-	end
-
-	if p3 then
-		Events.ServerCall("ServerItemPackEvent", p3, "Give", p1)
+	if v1 <= 0 then
+		v5.Visible = false
 	else
-		AlertBoxes:Push("Received " .. p1.Type)
+		v5.Text = "(On Cooldown: " .. TimeString((math.floor(v1 + 0.5))) .. ")"
+		v5.Visible = true
 	end
 
-	return true
+	t.UpdateBuyButtons(v1)
 end
-function t.Take(p1, p2) --[[ Take | Line: 74 | Upvalues: t (copy) ]]
-	if not t.PlayerHas(p1, p2) then
-		return false
-	end
+function t.Open() --[[ Open | Line: 336 | Upvalues: v3 (ref), v1 (ref), v2 (ref), t (copy) ]]
+	v3.Visible = true
+	v1 = true
+	v2 = v2 + 1
 
-	local Backpacks = p2.Backpacks
+	local v12 = v2
 
-	for i, v in ipairs(Backpacks) do
-		if v == p1.Type then
-			table.remove(Backpacks, i)
-
-			return true
-		end
-	end
-
-	return false
-end
-
-local function unequipModel(p1, p2) --[[ unequipModel | Line: 87 ]]
-	if p2 == nil then
-		return true
-	end
-
-	local Character = p2.Character
-
-	if Character == nil then
-		return true
-	end
-
-	local v1 = Character:FindFirstChild(p1)
-
-	if v1 == nil then
-		return true
-	end
-
-	v1:Destroy()
-
-	return true
-end
-
-local function equipModel(p1, p2) --[[ equipModel | Line: 96 | Upvalues: Backpacks (copy) ]]
-	if p2 ~= nil then
-		local Character = p2.Character
-
-		if Character ~= nil then
-			local v1 = Character:FindFirstChild(p1)
-
-			if v1 ~= nil then
-				v1:Destroy()
+	task.spawn(function() --[[ Line: 343 | Upvalues: v12 (copy), v2 (ref), t (ref) ]]
+		while task.wait(1) do
+			if v12 ~= v2 then
+				break
 			end
+
+			t.Update()
 		end
-	end
-
-	if p2 == nil then
-		return true
-	end
-
-	local Character = p2.Character
-
-	if Character == nil then
-		return true
-	end
-
-	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-
-	if Humanoid == nil then
-		return true
-	end
-
-	Humanoid:AddAccessory((Backpacks.Make(p1)))
+	end)
 end
-
-function t.Equippable(p1) --[[ Equippable | Line: 113 | Upvalues: t (copy) ]]
-	return t.Exists(p1) and true or false
+function t.OpenMarket(p1) --[[ OpenMarket | Line: 353 | Upvalues: v1 (ref), t (copy) ]]
+	if not v1 then
+		t.InitToMarket(p1)
+		t.Open()
+	end
 end
-function t.PlayerHasEquipped(p1, p2) --[[ PlayerHasEquipped | Line: 118 | Upvalues: t (copy) ]]
-	if not t.Exists(p1) then
-		return false
+function t.Close() --[[ Close | Line: 363 | Upvalues: v1 (ref), v3 (ref), v2 (ref), v8 (ref), t3 (ref) ]]
+	v1 = false
+	v3.Visible = false
+	v2 = v2 + 1
+	v8 = nil
+
+	for i, v in ipairs(t3) do
+		v.Gui:Destroy()
 	end
 
-	return p1.Type == p2.EquippedBackpack
+	t3 = {}
 end
-function t.PurchaseEffect(p1, p2, p3) --[[ PurchaseEffect | Line: 130 | Upvalues: t (copy) ]]
-	return t.Equip(p1, p2, p3)
-end
-function t.Unequip(p1, p2, p3) --[[ Unequip | Line: 137 | Upvalues: t (copy) ]]
-	if not p2 then
-		return false
-	end
+function t.Init(p1) --[[ Init | Line: 380 | Upvalues: v3 (ref), v4 (ref), v5 (ref), v6 (ref), v7 (ref), t (copy), t2 (copy), v8 (ref), Events (copy) ]]
+	v3 = p1:WaitForChild("BoostMarket")
+	require(game.ReplicatedStorage.ScreenInfo).ResizeGui(v3)
 
-	if not t.Exists(p1) then
-		return false
-	end
+	local Box = v3:WaitForChild("Box")
 
-	local Type = p1.Type
+	v4 = Box:WaitForChild("BoxBackground"):WaitForChild("ScrollingFrame")
+	v4.ScrollingDirection = Enum.ScrollingDirection.Y
+	v5 = Box:WaitForChild("CooldownLbl")
+	v6 = Box:WaitForChild("LastUpdateLbl")
+	v7 = v4:WaitForChild("BuffRow")
+	v7.Parent = nil
+	Box.CloseButton.MouseButton1Click:Connect(function() --[[ Line: 399 | Upvalues: t (ref) ]]
+		t.Close()
+	end)
 
-	if p2.EquippedBackpack ~= Type then
-		return false
-	end
+	local t3 = {
+		UpdateSummary = function(p1) --[[ Line: 409 | Upvalues: t2 (ref), v8 (ref), t (ref) ]]
+			t2[p1.MarketName] = p1.Summary
 
-	p2.EquippedBackpack = "None"
-
-	if p3 == nil then
-		return true
-	end
-
-	local Character = p3.Character
-
-	if Character == nil then
-		return true
-	end
-
-	local v1 = Character:FindFirstChild(Type)
-
-	if v1 == nil then
-		return true
-	end
-
-	v1:Destroy()
-
-	return true
-end
-function t.Equip(p1, p2, p3) --[[ Equip | Line: 152 | Upvalues: t (copy), Backpacks (copy) ]]
-	if not p2 then
-		return false
-	end
-
-	if not t.Exists(p1) then
-		return false
-	end
-
-	if not t.PlayerHas(p1, p2) then
-		return false
-	end
-
-	local Type = p1.Type
-	local EquippedBackpack = p2.EquippedBackpack
-
-	if p3 and EquippedBackpack == Type then
-		if p3 ~= nil then
-			local Character = p3.Character
-
-			if Character ~= nil then
-				local v1 = Character:FindFirstChild(Type)
-
-				if v1 ~= nil then
-					v1:Destroy()
-				end
+			if p1.MarketName == v8 then
+				t.Update()
+			else
+				t.InitToMarket(p1.MarketName)
 			end
+		end,
+		RegisterPurchase = function(p1) --[[ Line: 426 | Upvalues: t (ref) ]]
+			t.Update()
 		end
+	}
 
-		if p3 == nil then
-			return true
-		end
-
-		local Character = p3.Character
-
-		if Character == nil then
-			return true
-		end
-
-		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-
-		if Humanoid == nil then
-			return true
-		end
-
-		Humanoid:AddAccessory((Backpacks.Make(Type)))
-	else
-		if p3 and EquippedBackpack ~= "None" then
-			t.Unequip({
-				Type = EquippedBackpack
-			}, p2, p3)
-		end
-
-		p2.EquippedBackpack = Type
-
-		if not p3 then
-			return true
-		end
-
-		local v2 = require(game.ServerStorage.PollenTools).GetCapacity(p3)
-
-		if v2 < p2.Pollen then
-			p2.Pollen = v2
-
-			if p3 ~= nil then
-				local leaderstats = p3.leaderstats
-				local Pollen2 = p3.leaderstats:FindFirstChild("Pollen")
-
-				if Pollen2 ~= nil then
-					Pollen2.Value = p2.Pollen
-				end
-			end
-		end
-
-		if p3 ~= nil then
-			local Character = p3.Character
-
-			if Character ~= nil then
-				local v3 = Character:FindFirstChild(Type)
-
-				if v3 ~= nil then
-					v3:Destroy()
-				end
-			end
-		end
-
-		if p3 == nil then
-			return true
-		end
-
-		local Character = p3.Character
-
-		if Character == nil then
-			return true
-		end
-
-		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-
-		if Humanoid == nil then
-			return true
-		end
-
-		Humanoid:AddAccessory((Backpacks.Make(Type)))
-	end
-
-	return true
+	Events.ClientListen("BoostMarketEvent", function(p1) --[[ Line: 436 | Upvalues: t3 (copy) ]]
+		t3[p1.Action](p1)
+	end)
 end
 
 return t
