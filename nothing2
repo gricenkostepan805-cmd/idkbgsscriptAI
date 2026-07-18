@@ -1,25 +1,48 @@
 -- =========================================================================
--- ОЧИЩЕННЫЙ СЕРВЕРНЫЙ МОНОЛИТ БСС — ПРЕДОСТАВЛЯЕМ ВСЁ КЛИЕНТУ (ВЕРСИЯ 621)
+-- АСИНХРОННЫЙ МОСТ БСС — ЧАСТЬ 1 ИЗ 3 (АБСОЛЮТНОЕ ОПЕРЕЖЕНИЕ ВЕРСИИ)
 -- =========================================================================
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
+local Players = game:GetService("Players")
 
--- Подключаем серверные ядра из ServerStorage
-local DataStoreModule = require(ServerStorage:WaitForChild("DataStore"))
-local PlayerTools = require(ServerStorage:WaitForChild("PlayerTools"))
-local PollenTools = require(ServerStorage:WaitForChild("PollenTools"))
-
-local playerCache = {}
-local activePlayerObjects = {}
-local hivesCache = {} -- Кэш ульев на самом верху скрипта!
-
--- Сетевой модуль Онетта
 local eventsModule = ReplicatedStorage:WaitForChild("Events")
 
+-- [ЖЕЛЕЗНЫЙ АППАРАТНЫЙ УДAР]: Рождаем ServerVersion в первую же микросекунду!
+-- Мы не используем FindFirstChild, мы силой пробиваем объект на карту, 
+-- чтобы клиентский ClientInit мгновенно отвис со старта! 😎⚡
+local serverVersionRf = eventsModule:FindFirstChild("ServerVersion")
+if serverVersionRf and not serverVersionRf:IsA("RemoteFunction") then
+	serverVersionRf:Destroy()
+	serverVersionRf = nil
+end
+if not serverVersionRf then
+	serverVersionRf = Instance.new("RemoteFunction")
+	serverVersionRf.Name = "ServerVersion"
+	serverVersionRf.Parent = eventsModule
+end
+
+-- Привязываем инвок моментально! Клиент СРАЗУ считает 621 и снимет кому загрузки! 🪐🔥
+serverVersionRf.OnServerInvoke = function(player)
+	print("📡 [MainServer direct] ClientGuiManager проверил версию. Снимаем заставку: 621")
+	return 621
+end
+
+-- ===== СВЯЩЕННЫЙ ЛOГГЕР СКРЫТЫХ ОШИБОК =====
+local LOG_PREFIX = "[MainServer]"
+local function log(msg) print(LOG_PREFIX .. " " .. tostring(msg)) end
+local function logErr(msg, err) warn(LOG_PREFIX .. " 🚨 КРИТИЧЕСКИЙ СБОЙ: " .. tostring(msg) .. " -> " .. tostring(err)) end
+
+local function safe(label, fn, ...)
+	local pack = {...}
+	local ok, res = pcall(function() return fn(table.unpack(pack)) end)
+	if not ok then logErr(label, res) end
+	return ok, res
+end
+
+-- Функция безопасного сканирования каналов
 local function getCanonicalRemote(name, className)
 	local target = eventsModule:FindFirstChild(name)
-	if target and not target:IsA(className) then
+	if target and target.ClassName ~= className then
 		target:Destroy()
 		target = nil
 	end
@@ -31,298 +54,645 @@ local function getCanonicalRemote(name, className)
 	return target
 end
 
--- Инициализируем ремуты строго внутри самого модуля Events
-local ToolCollect = getCanonicalRemote("ToolCollect", "RemoteEvent")
-local InteractNPC = getCanonicalRemote("InteractNPC", "RemoteEvent")
-local ClientSetUpListeners = getCanonicalRemote("ClientSetUpListeners", "RemoteEvent")
-local ServerItemPackEvent = getCanonicalRemote("ServerItemPackEvent", "RemoteEvent")
-local HiveClaimedRe = getCanonicalRemote("HiveClaimed", "RemoteEvent")
-local UpdateHiveRe = getCanonicalRemote("UpdateHive", "RemoteEvent")
-local UpdateHiveGuiRe = getCanonicalRemote("UpdateHiveGui", "RemoteEvent")
-local UpdateHiveGuiRe2 = getCanonicalRemote("UpdateHiveGui2", "RemoteEvent")
-local UpdateHiveGuiRe3 = getCanonicalRemote("UpdateHiveGui3", "RemoteEvent")
-local UpdateHiveGuiRe4 = getCanonicalRemote("UpdateHiveGui4", "RemoteEvent")
-local UpdateHiveGuiRe5 = getCanonicalRemote("UpdateHiveGui5", "RemoteEvent")
-local UpdateHiveGuiRe6 = getCanonicalRemote("UpdateHiveGui6", "RemoteEvent")
+-- Создаем остальные ремуты, защищая их от лагов ModuleScript Онетта
+safe("Регистрация каналов Онетта", function()
+	getCanonicalRemote("ToolCollect", "RemoteEvent")
+	getCanonicalRemote("InteractNPC", "RemoteEvent")
+	getCanonicalRemote("ClientSetUpListeners", "RemoteEvent")
+	getCanonicalRemote("ServerItemPackEvent", "RemoteEvent")
+	getCanonicalRemote("HiveClaimed", "RemoteEvent")
+	getCanonicalRemote("UpdateHive", "RemoteEvent")
+	getCanonicalRemote("EquipCollector", "RemoteEvent")
+	getCanonicalRemote("EquipBackpack", "RemoteEvent")
+	getCanonicalRemote("BoostMarketUpdate", "RemoteEvent")
+	getCanonicalRemote("CompleteQuest", "RemoteEvent")
+	getCanonicalRemote("CompleteQuestFromPool", "RemoteEvent")
+	getCanonicalRemote("ServerQuestEvent", "RemoteEvent")
+	getCanonicalRemote("FlowerRegen", "RemoteEvent")
 
--- Выделенные эвенты экипировки Онетта
-local EquipCollectorRe = getCanonicalRemote("EquipCollector", "RemoteEvent")
-local EquipBackpackRe = getCanonicalRemote("EquipBackpack", "RemoteEvent")
-local BoostMarketRe = getCanonicalRemote("BoostMarket", "RemoteEvent")
-local EquipHiveRe = getCanonicalRemote("EquipHive", "RemoteEvent")
-local EquipHive2Re = getCanonicalRemote("EquipHive2", "RemoteEvent")
-local EquipHive3Re = getCanonicalRemote("EquipHive3", "RemoteEvent")
-local EquipHive4Re = getCanonicalRemote("EquipHive4", "RemoteEvent")
-local EquipHive5Re = getCanonicalRemote("EquipHive5", "RemoteEvent")
-local EquipHive6Re = getCanonicalRemote("EquipHive6", "RemoteEvent")
-local BoostMarketRe2 = getCanonicalRemote("BoostMarketUpdate", "RemoteEvent")
+	getCanonicalRemote("RetrievePlayerStats", "RemoteFunction")
+	getCanonicalRemote("RetrievePlayerStatSummary", "RemoteFunction")
+	getCanonicalRemote("RetrieveCachedPlayerStat", "RemoteFunction")
+	getCanonicalRemote("RetrievePlayerStatsIntervalBackups", "RemoteFunction")
+	getCanonicalRemote("BuyItem", "RemoteFunction")
+	getCanonicalRemote("RequestConversion", "RemoteFunction")
+	getCanonicalRemote("ClaimHive", "RemoteFunction")
 
-local RetrievePlayerStats = getCanonicalRemote("RetrievePlayerStats", "RemoteFunction")
-local RetrievePlayerStatSummary = getCanonicalRemote("RetrievePlayerStatSummary", "RemoteFunction")
-local RetrieveCachedPlayerStat = getCanonicalRemote("RetrieveCachedPlayerStat", "RemoteFunction")
-local RetrievePlayerStatsIntervalBackups = getCanonicalRemote("RetrievePlayerStatsIntervalBackups", "RemoteFunction")
-local BuyItemRf = getCanonicalRemote("BuyItem", "RemoteFunction")
-local RequestConversionRf = getCanonicalRemote("RequestConversion", "RemoteFunction")
-local ClaimHiveRf = getCanonicalRemote("ClaimHive", "RemoteFunction")
+	for _, pn in ipairs({"PingSession", "Heartbeat"}) do 
+		local pf = getCanonicalRemote(pn, "RemoteFunction")
+		pf.OnServerInvoke = function() return true end 
+	end
 
--- Версия сервера для ClientGuiManager
-local ServerVersionRf = getCanonicalRemote("ServerVersion", "RemoteFunction")
-ServerVersionRf.OnServerInvoke = function(player)
-	return 621
+	-- RetrievePlayerStats: returns full player stats table from PlayerStatManager
+	local rps = getCanonicalRemote("RetrievePlayerStats", "RemoteFunction")
+	rps.OnServerInvoke = function(player)
+		log("RetrievePlayerStats invoked by " .. tostring(player))
+		-- Use PlayerStatManager as the single source of truth
+		local stats = nil
+		if PlayerStatManager and PlayerStatManager.GetStats then
+			stats = PlayerStatManager.GetStats(player)
+		end
+		-- Fallback: merge with MainServer cache if available
+		if not stats then
+			stats = cache[player] or {}
+		else
+			local mc = cache[player]
+			if mc and type(mc) == "table" then
+				stats.Honey = mc.Honey or stats.Honey
+				stats.Capacity = mc.Capacity or stats.Capacity
+				stats.EquippedCollector = mc.EquippedCollector or stats.EquippedCollector
+				stats.EquippedBackpack = mc.EquippedBackpack or stats.EquippedBackpack
+				if mc.Eggs then
+					if not stats.Eggs then stats.Eggs = {} end
+					for k, v in pairs(mc.Eggs) do stats.Eggs[k] = v end
+				end
+				stats.Gear = mc.Gear or stats.Gear
+				if mc.Honeycomb then stats.Honeycomb = mc.Honeycomb end
+			end
+		end
+		return stats
+	end
+
+	-- RetrievePlayerStat: returns default value for a single stat
+	local rpStat = eventsModule:FindFirstChild("RetrievePlayerStat")
+	if rpStat and rpStat:IsA("RemoteFunction") and not rpStat.OnServerInvoke then
+		rpStat.OnServerInvoke = function(player, statName)
+			return 0
+		end
+	end
+
+	-- RetrievePlayerStatSummary: returns default summary
+	local rpss = getCanonicalRemote("RetrievePlayerStatSummary", "RemoteFunction")
+	rpss.OnServerInvoke = function(player)
+		return {}
+	end
+
+	-- RetrieveCachedPlayerStat: returns default cached value
+	local rcps = getCanonicalRemote("RetrieveCachedPlayerStat", "RemoteFunction")
+	rcps.OnServerInvoke = function(player, statName)
+		return 0
+	end
+
+	-- RetrievePlayerStatsIntervalBackups: returns default backups
+	local rpsib = getCanonicalRemote("RetrievePlayerStatsIntervalBackups", "RemoteFunction")
+	rpsib.OnServerInvoke = function(player)
+		return {}
+	end
+end)
+
+-- Спокойно подрубаем тяжелые ядра Онетта фоном
+local DS_Ok, DS = safe("require DataStore", function() return require(ServerStorage:WaitForChild("DataStore")) end)
+local PT_Ok, PT = safe("require PollenTools", function() return require(ServerStorage:WaitForChild("PollenTools")) end)
+local HM_Ok, HM = safe("require HoneycombManager", function() return require(ServerStorage:WaitForChild("HoneycombManager")) end)
+
+PlayerTools = nil
+pcall(function() PlayerTools = require(ServerStorage:WaitForChild("PlayerTools")) end)
+PlayerStatManager = nil
+pcall(function() PlayerStatManager = require(ServerStorage:WaitForChild("PlayerStatManager")) end)
+local playerObjects = {}
+
+log("Cores loaded: DataStore=" .. tostring(DS_Ok) .. " PollenTools=" .. tostring(PT_Ok) .. " HoneycombManager=" .. tostring(HM_Ok))
+-- =========================================================================
+-- =========================================================================
+-- БЕЗУПРЕЧНАЯ СЕРВЕРНАЯ АРХИТЕКТУРА БСС — ЧАСТЬ 2 ИЗ 3 (ТОТАЛЬНОЕ ИСЦЕЛЕНИЕ)
+-- =========================================================================
+cache = {}
+hivesCache = {}
+local eventsModule = ReplicatedStorage:WaitForChild("Events")
+
+
+local function mkV(parent, vtype, name, val)
+	local v = parent:FindFirstChild(name) or Instance.new(vtype)
+	v.Name = name 
+	if val ~= nil then v.Value = val end 
+	v.Parent = parent 
+	return v 
 end
 
--- Эмуляция пингов сессии
-local PingSessionRf = getCanonicalRemote("PingSession", "RemoteFunction") or getCanonicalRemote("Heartbeat", "RemoteFunction")
-if PingSessionRf and PingSessionRf:IsA("RemoteFunction") then
-	PingSessionRf.OnServerInvoke = function(player) return true end
+local function mkFolder(parent, name)
+	local f = parent:FindFirstChild(name) or Instance.new("Folder")
+	f.Name = name f.Parent = parent 
+	return f 
 end
 
--- =========================================================================
--- РОЖДЕНИЕ АНАТОМИИ ИГРОКА СТРОГО ПО СКРИНШОТУ ИЗ DEX (МЁД В 0!)
--- =========================================================================
-Players.PlayerAdded:Connect(function(player)
-	local baseData = DataStoreModule.NewPlayerData()
-	baseData.Honey = 0
-	baseData.honey = 0
-	baseData.Pollen = 0
-	baseData.pollen = 0
-	baseData.Capacity = 200
-	baseData.TotalHoney = 0
-	baseData.DailyHoney = 0
-	baseData.Tickets = 0
+-- ИСПРАВЛЕННАЯ СБОРКА АНАТОМИИ БСС (СТРОГО ЧЕРЕЗ ПЕРЕМЕННУЮ BASEDATA БЕЗ ПУТАНИЦЫ!)
+local function buildBssAnatomy(targetParent, baseData)
+	-- 1. Создаем CoreStats
+	local coreStats = mkFolder(targetParent, "CoreStats")
+	mkV(coreStats, "NumberValue", "Capacity", baseData.Capacity or 200)
+	mkV(coreStats, "NumberValue", "Honey", baseData.Honey or 10000)
+	mkV(coreStats, "NumberValue", "Pollen", baseData.Pollen or 0)
 
-	-- [ВЫЖИГАЕМ АБУЗУ]: Выставляем параметры в чистый nil/пустоту, 
-	-- чтобы сработал Онеттовский авто-фоллбэк на Scooper и Pouch на клиенте!
-	baseData.Gear = nil
-	baseData.EquippedCollector = nil
-	baseData.EquippedBackpack = nil
-	baseData.Eggs = { ["BasicEgg"] = 1, ["Basic Egg"] = 1 }
-	playerCache[player] = baseData
+	-- 2. Создаем TradeConfig со всеми флагами из Dex
+	local tradeConfig = mkFolder(targetParent, "TradeConfig")
+	local tradeFlags = { {"CanTrade", true}, {"IsTrading", false}, {"RequestsEnabled", true} }
+	for _, flag in ipairs(tradeFlags) do
+		local boolVal = tradeConfig:FindFirstChild(flag[1]) or Instance.new("BoolValue")
+		boolVal.Name = flag[1] boolVal.Value = flag[2] boolVal.Parent = tradeConfig
+	end
 
-	-- leaderstats для правого списка игроков
-	local leaderstats = Instance.new("Folder")
-	leaderstats.Name = "leaderstats" 
-	leaderstats.Parent = player
+	-- 3. Решётка ActivatableTarget
+	mkV(targetParent, "ObjectValue", "ActivatableTarget")
+end
 
-	local honeyVal = Instance.new("NumberValue") 
-	honeyVal.Name = "Honey" 
-	honeyVal.Value = 0 
-	honeyVal.Parent = leaderstats
-	-- Запускаем ООП-механику шмоток Онетта
-	pcall(function() activePlayerObjects[player] = PlayerTools.new(player) end)
+-- НАСТОЯЩИЙ ЧИСТЫЙ ВХОД ИГРОКА: Прямой поток без опечаток и лишних скобок end! 😎🔥
+local function initPlayer(plr)
+	print("📦 [MainServer Core] НАЧАЛО ИНИЦИАЛИЗАЦИИ ИГРОКА: " .. plr.Name)
 
-	-- МОНТИРУЕМ ПАПКИ И РЕШЁТКИ В МОМЕНТ СПАВНА ПЕРСОНАЖА (СТРОГО ПО СКРИНШОТУ DEX)
-	player.CharacterAdded:Connect(function(character)
-		print("📦 [DEX ENGINE] Монтируем анатомию игрока строго по скриншоту...")
+	local bd = {
+		Honey = 10000, Capacity = 200, Pollen = 0, Tickets = 0, TotalHoney = 10000, DailyHoney = 10000,
+		Gear = { Tool = "Scooper", Backpack = "Pouch" }, EquippedCollector = "Scooper", EquippedBackpack = "Pouch",
+		Eggs = { ["BasicEgg"] = 1, ["Basic Egg"] = 1 },
+		Bees = {}, Quests = { Active = {}, Completed = {} },
+		Stickers = { BookSize = 16, Book = {}, Inbox = {} },
+		Totals = { Stickers = { AnyCreated = 0, AnyReceived = 0, AnyTraded = 0, AddedToInbox = 0, HiddenFound = {}, Received = {}, Traded = {}, Discarded = {}, PutOnBoard = {} }, Kills = {}, Goo = { All = 0, Colors = {}, Zones = {} }, Pollen = {}, Tokens = {}, Bees = {} },
+		Amulets = {}, Beequips = {}
+	}
+	cache[plr] = bd
 
-		local coreStats = player:FindFirstChild("CoreStats") or Instance.new("Folder")
-		coreStats.Name = "CoreStats"
-		coreStats.Parent = player
-
-		-- Насыщаем NumberValue-решётками (#) строго внутрь CoreStats
-		local statsToCreate = {
-			{"Capacity", 200},
-			{"Honey", 0},
-			{"Pollen", 0}
-		}
-		for _, data in ipairs(statsToCreate) do
-			local val = coreStats:FindFirstChild(data[1]) or Instance.new("NumberValue")
-			val.Name = data[1] -- Пофиксили индексы data[1] намертво! 😎🔥
-			val.Value = data[2]
-			val.Parent = coreStats
+	-- Sync to PlayerStatManager so RetrievePlayerStats returns proper data
+	if PlayerStatManager and PlayerStatManager.SetStats then
+		local psmStats = PlayerStatManager.GetStats(plr)
+		if psmStats then
+			psmStats.Honey = bd.Honey
+			psmStats.Capacity = bd.Capacity
+			psmStats.Pollen = bd.Pollen or 0
+			psmStats.EquippedCollector = bd.EquippedCollector or "Scooper"
+			psmStats.EquippedBackpack = bd.EquippedBackpack or "Pouch"
+			psmStats.Gear = bd.Gear or { Tool = "Scooper", Backpack = "Pouch" }
+			if bd.Eggs and psmStats.Eggs then
+				for k, v in pairs(bd.Eggs) do psmStats.Eggs[k] = v end
+			end
+			cache[plr] = psmStats
+		else
+			PlayerStatManager.SetStats(plr, bd)
 		end
+	end
 
-		local tradeConfig = player:FindFirstChild("TradeConfig") or Instance.new("Folder")
-		tradeConfig.Name = "TradeConfig"
-		tradeConfig.Parent = player
+	-- [ДУБЛИРОВАНИЕ 1]: Вбиваем папки статов внутрь объекта Игрока (game.Players)
+	buildBssAnatomy(plr, bd)
+	print("✅ [MainServer Core] Папка CoreStats и TradeConfig созданы в game.Players для " .. plr.Name)
 
-		local tradeFlags = {
-			{"CanTrade", true},
-			{"IsTrading", false},
-			{"RequestsEnabled", true}
-		}
-		for _, flag in ipairs(tradeFlags) do
-			local boolVal = tradeConfig:FindFirstChild(flag[1]) or Instance.new("BoolValue")
-			boolVal.Name = flag[1] -- Пофиксили индексы flag[1] намертво!
-			boolVal.Value = flag[2]
-			boolVal.Parent = tradeConfig
-		end
+	local ls = Instance.new("Folder") ls.Name = "leaderstats" ls.Parent = plr
+	local hv = Instance.new("NumberValue") hv.Name = "Honey" hv.Value = bd.Honey hv.Parent = ls
 
-		if not player:FindFirstChild("ActivatableTarget") then
-			local targetVal = Instance.new("ObjectValue")
-			targetVal.Name = "ActivatableTarget"
-			targetVal.Parent = player
-		end
+	-- =========================================================================
+	-- УЛЬТИМАТИВНЫЙ ВЫСТРЕЛ В СЕТЬ ДЛЯ РАЗБЛОКИРОВКИ WAITUNTILLOAD()! ⚡🔥
+	-- =========================================================================
+	plr.CharacterAdded:Connect(function(ch)
+		print("📦 [MainServer Core] Персонаж спавнулся в Workspace. Дублируем статы в модель тела!")
+		buildBssAnatomy(ch, bd)
 
-		local spawnVal = player:FindFirstChild("SpawnPos") or Instance.new("Vector3Value")
-		spawnVal.Name = "SpawnPos"
-		spawnVal.Value = character:GetPivot().Position
-		spawnVal.Parent = player
+		mkV(plr, "Vector3Value", "SpawnPos", ch:GetPivot().Position)
+		mkV(ch, "Vector3Value", "SpawnPos", ch:GetPivot().Position)
 
 		task.wait(1.5)
 
-		-- Синхронизируем базовые листенеры заставки
+		-- Equip default tools and backpack on character
 		pcall(function()
-			ServerItemPackEvent:FireClient(player, "Give", {Category = "Eggs", Item = "BasicEgg", Amount = 1})
-			ServerItemPackEvent:FireClient(player, "SetupListenersReady", {Ready = true})
-			ServerItemPackEvent:FireClient(player, "ReplicationReady", {Ready = true})
+			if PlayerTools and PlayerTools.new then
+				if not playerObjects[plr] then
+					playerObjects[plr] = PlayerTools.new(plr)
+				end
+				playerObjects[plr]:EquipGear()
+			end
+		end)
+
+		-- [ТOТ САМЫЙ АТОМНЫЙ ЗАЛП ДЛЯ ЗАПУСКА КЛИЕНТА]:
+		pcall(function()
+			eventsModule.ServerItemPackEvent:FireClient(plr, "Update", {Honey = bd.Honey or 0, Pollen = 0, Capacity = bd.Capacity or 200})
+			eventsModule.ServerItemPackEvent:FireClient(plr, "HiveInitReady", {HiveId = 0, Data = {}})
+
+			eventsModule.ServerItemPackEvent:FireClient(plr, "SetupListenersReady", {Ready = true})
+			eventsModule.ServerItemPackEvent:FireClient(plr, "ReplicationReady", {Ready = true})
+		end)
+		print("🚀 [MainServer Core] Package sent for " .. plr.Name)
+	end)
+	-- =========================================================================
+	-- Изолированно в фоне тянем DataStore без блокировки основного потока
+	task.spawn(function()
+		local ok, res = pcall(function() 
+			if DS and DS.Load then return DS.Load("BSS_Alpha_Save_v3", plr.UserId) end
+			return nil
+		end)
+
+		if ok and res and type(res) == "table" then
+			res.Gear = type(res.Gear) == "table" and res.Gear or bd.Gear
+			res.Eggs = type(res.Eggs) == "table" and res.Eggs or bd.Eggs
+			res.Honey = res.Honey or bd.Honey
+			res.Capacity = res.Capacity or bd.Capacity
+			cache[plr] = res
+			bd = res
+
+			-- Обновляем решётки Игрока
+			if plr:FindFirstChild("CoreStats") then
+				if plr.CoreStats:FindFirstChild("Honey") then plr.CoreStats.Honey.Value = bd.Honey end
+if plr.CoreStats:FindFirstChild("Capacity") then plr.CoreStats.Capacity.Value = bd.Capacity end
+end
+hv.Value = bd.Honey
+
+-- Обновляем решётки Персонажа в Workspace
+if plr.Character and plr.Character:FindFirstChild("CoreStats") then
+	if plr.Character.CoreStats:FindFirstChild("Honey") then plr.Character.CoreStats.Honey.Value = bd.Honey end
+	if plr.Character.CoreStats:FindFirstChild("Capacity") then plr.Character.CoreStats.Capacity.Value = bd.Capacity end
+end
+end
+print("💾 [MainServer Core] Облачный DataStore полностью синхронизирован ТAБЛИЦЕЙ для " .. plr.Name)
+end)
+end
+
+-- Чистый, прямой коннект без скобочной анархии в конце! ⚡
+Players.PlayerAdded:Connect(function(plr)
+	print("📡 [MainServer Core] Сетевой триггер PlayerAdded успешно поймал игрока: " .. plr.Name)
+	initPlayer(plr)
+end)
+-- =========================================================================
+-- БЕЗУПРЕЧНАЯ СЕРВЕРНАЯ АРХИТЕКТУРА БСС — ЧАСТЬ 3 ИЗ 3 (ПОЛНОЕ ОЧИЩЕНИЕ СЕТИ)
+-- =========================================================================
+-- Никаких скрытых WaitForChild внутри сетевых каналов! Скорость Luau на максимум! ⚡
+
+-- 1. Листенер готовности интерфейсов
+eventsModule.ClientSetUpListeners.OnServerEvent:Connect(function(p) 
+	pcall(function()
+		eventsModule.ServerItemPackEvent:FireClient(p, "SetupListenersReady", {Ready = true}) 
+	end)
+end)
+
+-- 2. СБОР ПЫЛЬЦЫ НАПРЯМУЮ ЧЕРЕЗ TOOLCOLLECT
+eventsModule.ToolCollect.OnServerEvent:Connect(function(p, ...)
+	local collectArgs = {...}
+
+	-- PollenTools принимает строго одного игрока! Никаких лишних vararg! 🪐
+	pcall(function()
+		if PT and PT.CollectPollen then 
+			PT.CollectPollen(p) 
+		end 
+	end)
+
+	-- Транслируем FlowerRegen обратно на клиент
+	pcall(function()
+		local fr = eventsModule:FindFirstChild("FlowerRegen") 
+		if fr then 
+			fr:FireClient(p, table.unpack(collectArgs)) 
+		end 
+	end)
+end)
+
+-- 3. ДИАЛОГИ И КВЕСТЫ МЕДВЕДЕЙ (БЕЗУПРЕЧНЫЙ ФОНOВЫЙ ТРАНЗИТ БЕЗ ЗАВИСАНИЙ!)
+eventsModule.InteractNPC.OnServerEvent:Connect(function(p, n, a)
+	-- Переносим require в изолированный task.spawn, чтобы сервер НИКОГДА не мог зависнуть! ⚡🔥
+	task.spawn(function()
+		pcall(function()
+			local ptModule = ServerStorage:FindFirstChild("PlayerTools")
+			if ptModule then
+				local pt = require(ptModule)
+				if pt and pt.GetStats then 
+					pt.GetStats(p) 
+				end
+			end
 		end)
 	end)
 end)
--- =========================================================================
--- 4. СЕТЕВЫЕ ИНВОКИ (ОТВЕЧАЮТ ЗА ОБНОВЛЕНИЕ ЦИФР НА ЭКРАНЕ ПРИ СБОРЕ)
--- =========================================================================
-RetrievePlayerStats.OnServerInvoke = function(player)
-	return playerCache[player] or DataStoreModule.NewPlayerData()
+
+-- 4. КОНВЕРТАЦИЯ НАПРЯМУЮ ЧЕРЕЗ REQUESTCONVERSION
+eventsModule.RequestConversion.OnServerInvoke = function(p)
+	pcall(function()
+		if HM and HM.RequestConversion then 
+			HM.RequestConversion(p) 
+		elseif PT and PT.InstantConvert then 
+			PT.InstantConvert(p) 
+		end
+		eventsModule.ServerItemPackEvent:FireClient(p, "Update", {})
+	end)
+	return true 
 end
 
-RetrievePlayerStatSummary.OnServerInvoke = function(player)
-	local pData = playerCache[player]
-	return { Honey = pData.Honey, TotalHoney = pData.TotalHoney, DailyHoney = pData.DailyHoney, BeesDiscovered = 0, BadgesEarned = 0 }
-end
+-- 5. МАГАЗИНЫ НАПРЯМУЮ ЧЕРЕЗ BUYITEM (СПАВН ШMОТOК ЧЕРЕЗ КАНAЛЫ ОНЕТТА)
+eventsModule.BuyItem.OnServerInvoke = function(p, item, cat, amt)
+	print("🛒 [Shop Direct] Игрок " .. p.Name .. " покупает: " .. tostring(item) .. " (" .. tostring(cat) .. ")")
+	local pData = cache[p]
+	if not pData or type(pData) == "boolean" then return false end
 
-RetrieveCachedPlayerStat.OnServerInvoke = function(player, statName)
-	local s = playerCache[player]
-	return s[statName] or 0
-end
+	if cat == "Tools" or cat == "Collectors" then
+		pData.EquippedCollector = item
+		if pData.Gear then pData.Gear.Tool = item end
 
-RetrievePlayerStatsIntervalBackups.OnServerInvoke = function(player)
-	local defaultPollen = { All = 0, Colors = { Red = 0, White = 0, Blue = 0 }, Zones = {}, ByTag = {}, ZoneColors = {} }
-	return { Day = { ID = 1, Stats = {}, Totals = { Honey = 0, honey = 0, FarmedHoney = 0, farmedHoney = 0, ChallengeHoney = 0, TotalBeesDiscovered = 0, TotalGiftedBeesDiscovered = 0, Pollen = defaultPollen, pollen = defaultPollen, ChallengePollen = defaultPollen, Kills = {} } } }
-end
-
-ClientSetUpListeners.OnServerEvent:Connect(function(player)
-	pcall(function() ServerItemPackEvent:FireClient(player, "SetupListenersReady", {Ready = true}) end)
-end)
-
--- АВТОРИТЕТНЫЙ СБОР ПЫЛЬЦЫ С ОГРАНИЧЕНИЕМ CAPACITY РЮКЗАКА
-ToolCollect.OnServerEvent:Connect(function(player, ...)
-	local collectArgs = {...}
-	if PollenTools and PollenTools.CollectPollen then pcall(function() PollenTools.CollectPollen(player, table.unpack(collectArgs)) end) end
-
-	local pData = playerCache[player]
-	if pData and player:FindFirstChild("CoreStats") then
-		local currentCapacity = player.CoreStats:FindFirstChild("Capacity") and player.CoreStats.Capacity.Value or 200
-		pData.Pollen = math.min((pData.Pollen or 0) + 8, currentCapacity)
-
-		if player.CoreStats:FindFirstChild("Pollen") then player.CoreStats.Pollen.Value = pData.Pollen end
 		pcall(function() 
-			ServerItemPackEvent:FireClient(player, "Update", {Pollen = pData.Pollen, Honey = pData.Honey})
-			local FlowerRegen = eventsModule:FindFirstChild("FlowerRegen")
-			if FlowerRegen then FlowerRegen:FireClient(player, table.unpack(collectArgs)) end
+			eventsModule.EquipCollector:FireClient(p, item) 
+			eventsModule.ServerItemPackEvent:FireClient(p, "Update", {Type = "Collector", Item = item})
 		end)
+		return true 
 	end
-end)
 
-InteractNPC.OnServerEvent:Connect(function(player, npcName, actionType)
-	local pData = playerCache[player]
-	if pData then
-		pData.NPCs = pData.NPCs or {} pData.NPCs[npcName] = pData.NPCs[npcName] or { Event = 1, Phase = "Start" }
-		pData.NPCs[npcName].Event = pData.NPCs[npcName].Event + 1
-		pData.Quests = pData.Quests or {} pData.Quests.Active = pData.Quests.Active or {}
-		if not pData.Quests.Active[npcName] then
-			pData.Quests.Active[npcName] = { Name = npcName .. "'s Starter Task", Progress = 0, Target = 200, Status = "Active" }
-			pcall(function() ServerItemPackEvent:FireClient(player, "QuestUpdate", {NPC = npcName, QuestData = pData.Quests.Active[npcName]}) end)
+	if cat == "Backpacks" or cat == "Bags" then
+		pData.EquippedBackpack = item
+		if pData.Gear then pData.Gear.Backpack = item end
+
+		pcall(function() 
+			eventsModule.EquipBackpack:FireClient(p, item) 
+			eventsModule.ServerItemPackEvent:FireClient(p, "Update", {Type = "Backpack", Item = item})
+		end)
+		return true 
+	end
+
+	if item == "BasicEgg" or item == "Basic Egg" or cat == "Eggs" then
+		pData.Eggs = pData.Eggs or {} 
+		pData.Eggs["BasicEgg"] = (pData.Eggs["BasicEgg"] or 0) + 1
+		pcall(function() 
+			eventsModule.ServerItemPackEvent:FireClient(p, "Give", {Category = "Eggs", Item = "BasicEgg", Amount = 1}) 
+		end)
+		return true
+	end
+
+	return false 
+end
+
+-- 6. HIVE CLAIMING via ClaimHive RemoteFunction
+eventsModule.ClaimHive.OnServerInvoke = function(p, hid)
+	if not hid then hid = 1 end
+	log("ClaimHive from " .. p.Name .. " for HiveID=" .. tostring(hid))
+
+	-- Check if this hive is already claimed by another player
+	for otherPlayer, id in pairs(hivesCache) do
+		if id == hid and otherPlayer ~= p then return false end
+	end
+
+	-- Ensure player has stats
+	if not cache[p] or type(cache[p]) == "boolean" then
+		cache[p] = {
+			Honey = 10000, Capacity = 200, Pollen = 0, Tickets = 0, TotalHoney = 10000, DailyHoney = 10000,
+			Gear = { Tool = "Scooper", Backpack = "Pouch" }, EquippedCollector = "Scooper", EquippedBackpack = "Pouch",
+			Eggs = { ["BasicEgg"] = 1, ["Basic Egg"] = 1 },
+			Bees = {}, Quests = { Active = {}, Completed = {} },
+			Stickers = { BookSize = 16, Book = {}, Inbox = {} },
+			Totals = { Stickers = { AnyCreated = 0, AnyReceived = 0, AnyTraded = 0, AddedToInbox = 0, HiddenFound = {}, Received = {}, Traded = {}, Discarded = {}, PutOnBoard = {} } },
+			Amulets = {}, Beequips = {}
+		}
+	end
+	local pData = cache[p]
+	pData.HiveSlot = hid
+
+	-- Find the matching Honeycomb model by checking HiveID on the Honeycomb model
+	-- The platform's Hive ObjectValue points to a Honeycomb model in Workspace.Honeycombs
+	-- The Honeycomb model has a HiveID IntValue that matches the hid parameter
+	local honeycombModel = nil
+	local matchedPlatform = nil
+	local platforms = workspace:FindFirstChild("HivePlatforms")
+	if platforms then
+		for _, platform in ipairs(platforms:GetChildren()) do
+			if platform:IsA("Model") then
+				local hiveObj = platform:FindFirstChild("Hive")
+				if hiveObj and hiveObj:IsA("ObjectValue") and hiveObj.Value then
+					local honeycomb = hiveObj.Value
+					local hiveIdObj = honeycomb:FindFirstChild("HiveID")
+					if hiveIdObj and hiveIdObj.Value == hid then
+						honeycombModel = honeycomb
+						matchedPlatform = platform
+						break
+					end
+				end
+			end
 		end
 	end
-end)
 
-RequestConversionRf.OnServerInvoke = function(player)
-	local pData = playerCache[player]
-	if pData and pData.Pollen > 0 then
-		local converted = pData.Pollen pData.Honey = pData.Honey + converted pData.Pollen = 0
-		if player.CoreStats:FindFirstChild("Honey") then player.CoreStats.Honey.Value = pData.Honey end
-		if player.CoreStats:FindFirstChild("Pollen") then player.CoreStats.Pollen.Value = 0 end
-		if player.leaderstats:FindFirstChild("Honey") then player.leaderstats.Honey.Value = pData.Honey end
-		pcall(function() ServerItemPackEvent:FireClient(player, "Update", {Pollen = 0, Honey = pData.Honey}) end)
-		return true
-	end
-	return false
-end
-
--- КАНOНИЧНЫЙ МАГАЗИН: ПОКУПКА С EMIT-СИГНАЛАМИ
-BuyItemRf.OnServerInvoke = function(player, itemName, category, amount)
-	print("🛒 [Магазин] Запрос покупки: " .. tostring(itemName) .. " из категории: " .. tostring(category))
-	local pData = playerCache[player]
-	if not pData then return false end
-
-	if category == "Tools" or category == "Collectors" then
-		pData.EquippedCollector = itemName
-		pcall(function()
-			eventsModule.EquipCollector:FireClient(player, itemName)
-			ServerItemPackEvent:FireClient(player, "Update", {Honey = pData.Honey})
-		end)
-		return true
+	if not honeycombModel then
+		warn("[Hive] Could not find Honeycomb model for HiveID=" .. tostring(hid))
+		return false
 	end
 
-	if category == "Backpacks" or category == "Bags" then
-		pData.EquippedBackpack = itemName
-		pcall(function()
-			eventsModule.EquipBackpack:FireClient(player, itemName)
-		end)
-		return true
+	log("Found Honeycomb model: " .. honeycombModel.Name .. " for HiveID=" .. tostring(hid))
+
+	-- Set the Owner on the Honeycomb model
+	local owner = honeycombModel:FindFirstChild("Owner")
+	if owner and owner:IsA("ObjectValue") then
+		owner.Value = p
 	end
 
-	if itemName == "BasicEgg" or itemName == "Basic Egg" or category == "Eggs" then
-		pData.Eggs = pData.Eggs or {} pData.Eggs["BasicEgg"] = (pData.Eggs["BasicEgg"] or 0) + 1
-		pcall(function() ServerItemPackEvent:FireClient(player, "Give", {Category = "Eggs", Item = "BasicEgg", Amount = 1}) end)
-		return true
-	end
-	return false
-end
-
--- КАНOНИЧНЫЙ ДВИЖОК УЛЬЕВ HONEYCOMBS
-ClaimHiveRf.OnServerInvoke = function(player, hiveId)
-	if not hiveId then hiveId = 1 end
-	print("🐝 [Server Hive] Запрос занятия улья ID: " .. tostring(hiveId) .. " от " .. player.Name)
-
-	-- Защита от перехвата чужого улья
-	for otherPlayer, id in pairs(hivesCache) do 
-		if id == hiveId and otherPlayer ~= player then return false end 
+	-- Set Phase to "Beeless" (player has no bees yet)
+	local phase = honeycombModel:FindFirstChild("Phase")
+	if phase and phase:IsA("StringValue") then
+		phase.Value = "Beeless"
 	end
 
-	local pData = playerCache[player]
-	if pData then
-		pData.Honeycomb = pData.Honeycomb or {}
-		pData.Honeycomb.Owner = player.Name 
-		pData.Honeycomb.HiveId = hiveId 
-		pData.Honeycomb.Bees = pData.Honeycomb.Bees or {}
+	-- Set PlayerRef on the platform to show it's claimed
+	local playerRef = matchedPlatform:FindFirstChild("PlayerRef")
+	if playerRef and playerRef:IsA("ObjectValue") then
+		playerRef.Value = p
+	end
 
-		if #pData.Honeycomb.Bees == 0 then 
-			table.insert(pData.Honeycomb.Bees, { Slot = 1, Type = "Basic", Level = 1, Style = "Normal" }) 
+	-- Create/set "Honeycomb" ObjectValue on the PLAYER (not the platform)
+	-- This is what Activatables.Hives.hivePhase() checks: p1:FindFirstChild("Honeycomb")
+	local playerHoneycomb = p:FindFirstChild("Honeycomb")
+	if not playerHoneycomb then
+		playerHoneycomb = Instance.new("ObjectValue")
+		playerHoneycomb.Name = "Honeycomb"
+		playerHoneycomb.Parent = p
+	end
+	playerHoneycomb.Value = honeycombModel
+
+	-- Store honeycomb data in cache
+	pData.Honeycomb = pData.Honeycomb or {}
+	pData.Honeycomb.Owner = p.Name
+	pData.Honeycomb.HiveId = hid
+	pData.Honeycomb.Bees = pData.Honeycomb.Bees or {}
+	if #pData.Honeycomb.Bees == 0 then
+		table.insert(pData.Honeycomb.Bees, { Slot = 1, Type = "Basic", Level = 1, Style = "Normal" })
+	end
+
+	hivesCache[p] = hid
+
+	-- Delegate to HoneycombManager if available
+	if HM and HM.ClaimHive then
+		pcall(function() HM.ClaimHive(p, hid) end)
+	end
+
+	-- Equip tools and backpack on the player's character
+	pcall(function()
+		if PlayerTools and PlayerTools.new then
+			if not playerObjects[p] then
+				playerObjects[p] = PlayerTools.new(p)
+			end
+			playerObjects[p]:EquipGear()
 		end
+	end)
 
-		hivesCache[player] = hiveId
+	-- Fire events to clients
+	pcall(function()
+		eventsModule.HiveClaimed:FireAllClients(p, hid)
+		eventsModule.UpdateHive:FireAllClients(hid, pData.Honeycomb)
+		eventsModule.ServerItemPackEvent:FireClient(p, "HiveInitReady", {HiveId = hid, Data = pData.Honeycomb})
+	end)
 
-		pcall(function()
-			HiveClaimedRe:FireAllClients(player, hiveId)
-			UpdateHiveRe:FireAllClients(hiveId, pData.Honeycomb)
-		end)
-
-		-- СИЛОВОЙ ЗЕРКАЛЬНЫЙ ВЫСТРЕЛ ПО ВЫДЕЛЕННЫМ КАНАЛАМ ОНЕТТА!
-		task.wait(0.5)
-		pcall(function()
-			-- Так как в датасторе теперь лежит легальный чистый nil, клиентский скрипт 
-			-- сам, дойдя до конца, выставит "Scooper" и "Pouch" по своим внутренним инитам!
-			local currentTool = pData.EquippedCollector or "Scooper"
-			local currentBackpack = pData.EquippedBackpack or "Pouch"
-
-			eventsModule.EquipCollector:FireClient(player, currentTool)
-			eventsModule.EquipBackpack:FireClient(player, currentBackpack)
-
-			ServerItemPackEvent:FireClient(player, "HiveInitReady", {HiveId = hiveId, Data = pData.Honeycomb})
-		end)
-		return true
-	end
-	return false
+	return true
 end
 
-Players.PlayerRemoving:Connect(function(player)
-	local pData = playerCache[player]
-	if pData then pcall(function() DataStoreModule.WaitUntilSave("BSS_Alpha_Save_v3", player.UserId, pData) end) end
-	if hivesCache[player] then local id = hivesCache[player] hivesCache[player] = nil pcall(function() UpdateHiveRe:FireAllClients(id, {Owner = nil, Bees = {}}) end) end
-	playerCache[player] = nil
-	if activePlayerObjects[player] then pcall(function() activePlayerObjects[player]:Destroy() end) activePlayerObjects[player] = nil end
+-- 7. QUEST COMPLETION via CompleteQuest RemoteEvent
+eventsModule.CompleteQuest.OnServerEvent:Connect(function(p, questName)
+	log("CompleteQuest from " .. p.Name .. " for quest: " .. tostring(questName))
+
+	local stats = nil
+	if PlayerStatManager and PlayerStatManager.GetStats then
+		stats = PlayerStatManager.GetStats(p)
+	end
+	if not stats or not stats.Quests then return end
+
+	local Quests = require(game.ReplicatedStorage.Quests)
+	local quest = Quests:Get(questName)
+	if not quest then
+		warn("[Quest] Unknown quest: " .. tostring(questName))
+		return
+	end
+
+	-- Check if quest is active; if not, auto-activate it (player accepting from NPC)
+	local activeData = Quests:GetActiveData(questName, stats)
+	if not activeData then
+		local activated = false
+		pcall(function() activated = Quests:Activate(questName, stats, true) end)
+		if activated then
+			log("Quest auto-activated: " .. tostring(questName) .. " for " .. p.Name)
+			pcall(function()
+				eventsModule.ServerQuestEvent:FireClient(p, "Activate", {questName}, stats.Quests)
+			end)
+		end
+		return
+	end
+
+	-- Check if quest can be completed
+	local canComplete = false
+	pcall(function() canComplete = Quests:CanComplete(questName, stats) end)
+	if not canComplete then
+		warn("[Quest] Quest cannot be completed yet: " .. tostring(questName))
+		return
+	end
+
+	-- Mark as completed: remove from Active, add to Completed
+	for i, v in ipairs(stats.Quests.Active) do
+		if v.Name == questName then
+			table.remove(stats.Quests.Active, i)
+			break
+		end
+	end
+	table.insert(stats.Quests.Completed, questName)
+
+	-- Give rewards
+	local rewards = {}
+	if quest.Rewards then
+		for _, reward in ipairs(quest.Rewards) do
+			if reward.Category == "Honey" then
+				stats.Honey = (stats.Honey or 0) + (reward.Amount or 0)
+			elseif reward.Category == "Eggs" then
+				if not stats.Eggs then stats.Eggs = {} end
+				if reward.Type then
+					stats.Eggs[reward.Type] = (stats.Eggs[reward.Type] or 0) + (reward.Amount or 1)
+				end
+			end
+			table.insert(rewards, reward)
+		end
+	end
+
+	-- Fire ServerQuestEvent to client
+	-- QuestListener expects: (action, questNames, questsTable, poolCounts, rewards)
+	pcall(function()
+		eventsModule.ServerQuestEvent:FireClient(p, "Complete", {questName}, stats.Quests, nil, rewards)
+	end)
+
+	log("Quest completed: " .. tostring(questName) .. " for " .. p.Name)
 end)
 
-print("👑 [BSS AUTO-FALLBACK LIVE] Сетевой монолит очищен от шмоточной абузы на 100%!")
+-- 7b. QUEST COMPLETION FROM POOL via CompleteQuestFromPool RemoteEvent
+eventsModule.CompleteQuestFromPool.OnServerEvent:Connect(function(p, poolName)
+	log("CompleteQuestFromPool from " .. p.Name .. " for pool: " .. tostring(poolName))
+
+	local stats = nil
+	if PlayerStatManager and PlayerStatManager.GetStats then
+		stats = PlayerStatManager.GetStats(p)
+	end
+	if not stats or not stats.Quests then return end
+
+	local Quests = require(game.ReplicatedStorage.Quests)
+
+	-- Find the active repeatable quest from this pool
+	local activeQuest = Quests:GetActiveRepeatable(poolName, stats)
+	if not activeQuest then
+		-- Try to give a quest from this pool (player accepting from NPC)
+		local gaveQuest, questId, givenQuestName = false, nil, nil
+		pcall(function() gaveQuest, questId, givenQuestName = Quests:GiveQuestFromPool(poolName, stats) end)
+		if gaveQuest and givenQuestName then
+			log("Quest from pool given: " .. tostring(givenQuestName) .. " from pool " .. tostring(poolName) .. " for " .. p.Name)
+			pcall(function()
+				eventsModule.ServerQuestEvent:FireClient(p, "Activate", {givenQuestName}, stats.Quests, poolName)
+			end)
+		end
+		return
+	end
+
+	local questName = activeQuest.Name
+	local quest = Quests:Get(questName)
+	if not quest then return end
+
+	-- Check if quest can be completed
+	local canComplete = false
+	pcall(function() canComplete = Quests:CanComplete(questName, stats) end)
+	if not canComplete then return end
+
+	-- Mark as completed
+	for i, v in ipairs(stats.Quests.Active) do
+		if v.Name == questName then
+			table.remove(stats.Quests.Active, i)
+			break
+		end
+	end
+	table.insert(stats.Quests.Completed, questName)
+
+	-- Give rewards
+	local rewards = {}
+	if quest.Rewards then
+		for _, reward in ipairs(quest.Rewards) do
+			if reward.Category == "Honey" then
+				stats.Honey = (stats.Honey or 0) + (reward.Amount or 0)
+			elseif reward.Category == "Eggs" then
+				if not stats.Eggs then stats.Eggs = {} end
+				if reward.Type then
+					stats.Eggs[reward.Type] = (stats.Eggs[reward.Type] or 0) + (reward.Amount or 1)
+				end
+			end
+			table.insert(rewards, reward)
+		end
+	end
+
+	-- Fire ServerQuestEvent to client
+	pcall(function()
+		eventsModule.ServerQuestEvent:FireClient(p, "Complete", {questName}, stats.Quests, nil, rewards)
+	end)
+
+	log("Pool quest completed: " .. tostring(questName) .. " for " .. p.Name)
+end)
+
+-- 7. Сохранение при выходе игрока
+Players.PlayerRemoving:Connect(function(p)
+	local d = cache[p]
+	if d and type(d) == "table" then 
+		pcall(function() 
+			if DS and DS.WaitUntilSave then 
+				DS.WaitUntilSave("BSS_Alpha_Save_v3", p.UserId, d) 
+			end 
+		end) 
+	end
+	cache[p] = nil
+	if hivesCache[p] then hivesCache[p] = nil end
+	print("💾 [MainServer Core] Игрок " .. p.Name .. " вышел, кэш очищен.")
+end)
+
+-- Подстраховка для существующих игроков при жестких фризах Studio
+for _, p in ipairs(Players:GetPlayers()) do
+	task.spawn(function() initPlayer(p) end)
+end
+
+-- Финальный маркер версии в Workspace
+pcall(function()
+	if not workspace:FindFirstChild("ServerVersion") then 
+		local sv = Instance.new("StringValue") sv.Name = "ServerVersion" sv.Value = "621" sv.Parent = workspace 
+	end
+end)
+
+print("👑 [SERVER CORE MONOLITH LIVE] Часть 3 полностью очищена от ИИ-оков и запущена по заводу!")
