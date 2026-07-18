@@ -1,305 +1,418 @@
--- Script Path: game:GetService("ReplicatedStorage").Gui.BoostMarketGui
--- Took 0.29s to decompile.
--- Executor: Velocity (1.1.1)
+local ds = game:GetService("DataStoreService"):GetDataStore("PlayerDataNQ2")
+_G.PlayerData = {}
+local items = require(game.ReplicatedStorage.Modules:WaitForChild("Items"))
+_G.CurrentBuffs = {}
+require(game.ReplicatedStorage.Modules:WaitForChild("FlowerScript")).LoadAllFields()
+local Zone = require(game:GetService("ReplicatedStorage").Modules:WaitForChild("Zone"))
+local flowerModule = require(game.ReplicatedStorage.Modules:WaitForChild("FlowerScript"))
+flowerModule.Spawner(flowerModule.TriggerRegen)
+local PlrLoader = require(script:WaitForChild("LoadPlayerBuffs"))
+for _,v in pairs(workspace.Fields:GetChildren()) do
+	local container = v.FieldBox
+	local zone = Zone.new(container)
 
--- https://lua.expert/
-local t = {}
-local Events = require(game.ReplicatedStorage.Events)
-local NumberCommas = require(game.ReplicatedStorage.NumberCommas)
-local TimeString = require(game.ReplicatedStorage.TimeString)
-local OsTime = require(game.ReplicatedStorage.OsTime)
-local t2 = {}
-local v1 = false
-local v2 = 0
-local v3 = nil
-local v4 = nil
-local v5 = nil
-local v6 = nil
-local v7 = nil
-local v8 = nil
-local t3 = {}
-local v9 = false
-
-function t.DeleteRows() --[[ DeleteRows | Line: 40 | Upvalues: t3 (ref) ]]
-	for i, v in ipairs(t3) do
-		v.Gui:Destroy()
-	end
-
-	t3 = {}
-end
-function t.InitToLoadingScreen() --[[ InitToLoadingScreen | Line: 54 ]] end
-function t.GetCooldownRemaining() --[[ GetCooldownRemaining | Line: 60 | Upvalues: v8 (ref), OsTime (copy) ]]
-	if v8 then
-		local StatTools = require(game.ReplicatedStorage.StatTools)
-		local v3 = StatTools.GetLastCooldownTime(require(game.ReplicatedStorage.ClientStatCache):Get(), "BMBuy" .. v8) or 0
-
-		return 1800 - (OsTime() - v3)
-	end
-
-	error("cannot get cooldown remaining if no market")
-end
-function t.UpdateBuyButtons(p1) --[[ UpdateBuyButtons | Line: 85 | Upvalues: v8 (ref), t (copy), t2 (copy), t3 (ref), NumberCommas (copy), v9 (ref), Events (copy) ]]
-	if not v8 then
-		return nil
-	end
-
-	if not p1 then
-		p1 = t.GetCooldownRemaining()
-	end
-
-	local ItemPackages = require(game.ReplicatedStorage.ItemPackages)
-	local v2 = require(game.ReplicatedStorage.ClientStatCache):Get()
-	local v3 = t2[v8]
-	local t4 = {}
-
-	for i, v in ipairs(t3) do
-		local v4, v5
-		local Boost = v.Boost
-		local v6 = nil
-
-		for i2, v7 in ipairs(v3.Boosts) do
-			if v7.Buff == Boost.Buff then
-				v.Boost = v7
-				v6 = v7
-
-				break
-			end
-		end
-
-		if v6 then
-			table.insert(t4, v)
-
-			local Gui = v.Gui
-
-			Gui.SoldLbl.Text = "Recently Sold: " .. NumberCommas(v6.Sales - 1)
-
-			local v7 = require(game.ReplicatedStorage.Buffs).Get(v6.Buff)
-
-			Gui.Icon.Image = v7.Icon
-
-			if v6.Change > 0 then
-				v4 = "+" .. v6.Change
-				v5 = Color3.fromRGB(24, 182, 43)
-			elseif v6.Change < 0 then
-				v4 = v6.Change
-				v5 = Color3.fromRGB(195, 53, 61)
-			else
-				v4, v5 = "-", Color3.fromRGB(92, 91, 98)
-			end
-
-			Gui.ChangeIconLbl.Text = v4
-			Gui.ChangeIconLbl.TextColor3 = v5
-
-			local v11 = math.max(1, 10 - (i - 1))
-
-			if v11 > 0 then
-				local v12 = v11 .. " Ticket"
-
-				if v11 > 1 then
-					v12 = v12 .. "s"
-				end
-
-				Gui.BuyButton.Text = "Buy For " .. v12 .. " and " .. NumberCommas(v6.Cost) .. " Honey"
-			else
-				Gui.BuyButton.Text = "Buy For " .. NumberCommas(v6.Cost) .. " Honey"
-			end
-
-			local t5 = {
-				Category = "Honey",
-				Amount = v6.Cost
-			}
-			local t6 = {
-				Category = "Eggs",
-				Type = "Ticket",
-				Amount = v11
-			}
-
-			local function playerCanAfford() --[[ playerCanAfford | Line: 158 | Upvalues: ItemPackages (copy), t5 (copy), v2 (copy), v11 (copy), t6 (copy) ]]
-				return ItemPackages.PlayerHas(t5, v2) and (if v11 <= 0 then true else ItemPackages.PlayerHas(t6, v2))
-			end
-
-			local BuyButton = Gui.BuyButton
-
-			BuyButton.MouseButton1Click:Connect(function() --[[ Line: 164 | Upvalues: v9 (ref), v6 (ref), t (ref), ItemPackages (copy), t5 (copy), v2 (copy), v11 (copy), t6 (copy), Events (ref), v8 (ref) ]]
-				if v9 then
-					return
-				end
-
-				v9 = true
-				({
-					Category = "Honey"
-				}).Amount = v6.Cost
-
-				if t.GetCooldownRemaining() <= 0 and (ItemPackages.PlayerHas(t5, v2) and (if v11 <= 0 then true else ItemPackages.PlayerHas(t6, v2))) then
-					Events.ClientCall("BoostMarketEvent", {
-						Action = "PurchaseBoost",
-						MarketName = v8,
-						Boost = v6.Buff
-					})
-					script.ChaChing:Play()
-				end
-
-				task.wait(0.2)
-				v9 = false
-			end)
-
-			if p1 <= 0 and (ItemPackages.PlayerHas(t5, v2) and (if v11 <= 0 then true else ItemPackages.PlayerHas(t6, v2))) then
-				BuyButton.BackgroundTransparency = 0
-				BuyButton.BackgroundColor3 = Color3.fromRGB(94, 255, 128)
-				BuyButton.BorderColor3 = Color3.fromRGB(99, 185, 120)
-				BuyButton.TextTransparency = 0
-				BuyButton.AutoButtonColor = true
-
-				continue
-			end
-
-			BuyButton.BackgroundTransparency = 0.5
-			BuyButton.BackgroundColor3 = Color3.fromRGB(201, 39, 28)
-			BuyButton.BorderColor3 = Color3.fromRGB(110, 45, 39)
-			BuyButton.TextTransparency = 0.5
-			BuyButton.AutoButtonColor = false
-		else
-			v.Gui:Destroy()
-		end
-	end
-end
-function t.InitToMarket(p1) --[[ InitToMarket | Line: 218 | Upvalues: v8 (ref), t2 (copy), t (copy), Events (copy), v6 (ref), v7 (ref), v4 (ref), t3 (ref) ]]
-	if v8 == p1 then
-		return
-	end
-
-	local v1 = t2[p1]
-
-	t.DeleteRows()
-
-	if not v1 then
-		t.InitToLoadingScreen()
-		Events.ClientCall("BoostMarketEvent", {
-			Action = "FetchSummary",
-			MarketName = p1
-		})
-
-		return
-	end
-
-	v8 = p1
-
-	local v2 = require(game.ReplicatedStorage.AgeString)(require(game.ReplicatedStorage.OsTime)() - v1.LastUpdateTime, true)
-
-	v6.Text = "Last Updated:\n" .. (if v2 == "Newborn" then ">1 Hour Ago" else v2 .. " Ago")
-
-	local Buffs = require(game.ReplicatedStorage.Buffs)
-
-	require(game.ReplicatedStorage.ItemPackages)
-	require(game.ReplicatedStorage.ClientStatCache):Get()
-
-	for i, v in ipairs(v1.Boosts) do
-		local v42 = v7:Clone()
-
-		v42.TitleLbl.Text = i .. ") " .. v.Buff
-		v42.DescLbl.Text = Buffs.GetDesc(v.Buff, nil, true)
-		v42.Parent = v4
-		table.insert(t3, {
-			Boost = v,
-			Gui = v42
-		})
-	end
-
-	t.Update()
-
-	local Offset = v7.Size.Y.Offset
-	local v62 = 0.05 * Offset
-
-	for i, v in ipairs(t3) do
-		v.Gui.Position = UDim2.new(v7.Position.X.Scale, 0, 0, v62 + (i - 1) * (Offset + v62))
-	end
-
-	v4.CanvasSize = UDim2.new(1, 0, 0, #t3 * (Offset + v62) + v62)
-end
-function t.IsOpen() --[[ IsOpen | Line: 314 | Upvalues: v1 (ref) ]]
-	return v1
-end
-function t.Update() --[[ Update | Line: 319 | Upvalues: t (copy), v5 (ref), TimeString (copy) ]]
-	local v1 = t.GetCooldownRemaining()
-
-	if v1 <= 0 then
-		v5.Visible = false
-	else
-		v5.Text = "(On Cooldown: " .. TimeString((math.floor(v1 + 0.5))) .. ")"
-		v5.Visible = true
-	end
-
-	t.UpdateBuyButtons(v1)
-end
-function t.Open() --[[ Open | Line: 336 | Upvalues: v3 (ref), v1 (ref), v2 (ref), t (copy) ]]
-	v3.Visible = true
-	v1 = true
-	v2 = v2 + 1
-
-	local v12 = v2
-
-	task.spawn(function() --[[ Line: 343 | Upvalues: v12 (copy), v2 (ref), t (ref) ]]
-		while task.wait(1) do
-			if v12 ~= v2 then
-				break
-			end
-
-			t.Update()
+	zone.playerEntered:Connect(function(player)
+		player.Field.Value = v.Name
+		if game.ReplicatedStorage.Modules.Bosses:FindFirstChild(v.Name) then
+			require(game.ReplicatedStorage.Modules.Bosses:WaitForChild(v.Name)).new(player)
 		end
 	end)
-end
-function t.OpenMarket(p1) --[[ OpenMarket | Line: 353 | Upvalues: v1 (ref), t (copy) ]]
-	if not v1 then
-		t.InitToMarket(p1)
-		t.Open()
-	end
-end
-function t.Close() --[[ Close | Line: 363 | Upvalues: v1 (ref), v3 (ref), v2 (ref), v8 (ref), t3 (ref) ]]
-	v1 = false
-	v3.Visible = false
-	v2 = v2 + 1
-	v8 = nil
 
-	for i, v in ipairs(t3) do
-		v.Gui:Destroy()
-	end
-
-	t3 = {}
-end
-function t.Init(p1) --[[ Init | Line: 380 | Upvalues: v3 (ref), v4 (ref), v5 (ref), v6 (ref), v7 (ref), t (copy), t2 (copy), v8 (ref), Events (copy) ]]
-	v3 = p1:WaitForChild("BoostMarket")
-	require(game.ReplicatedStorage.ScreenInfo).ResizeGui(v3)
-
-	local Box = v3:WaitForChild("Box")
-
-	v4 = Box:WaitForChild("BoxBackground"):WaitForChild("ScrollingFrame")
-	v4.ScrollingDirection = Enum.ScrollingDirection.Y
-	v5 = Box:WaitForChild("CooldownLbl")
-	v6 = Box:WaitForChild("LastUpdateLbl")
-	v7 = v4:WaitForChild("BuffRow")
-	v7.Parent = nil
-	Box.CloseButton.MouseButton1Click:Connect(function() --[[ Line: 399 | Upvalues: t (ref) ]]
-		t.Close()
+	zone.playerExited:Connect(function(player)
+		player.Field.Value = ""
 	end)
-
-	local t3 = {
-		UpdateSummary = function(p1) --[[ Line: 409 | Upvalues: t2 (ref), v8 (ref), t (ref) ]]
-			t2[p1.MarketName] = p1.Summary
-
-			if p1.MarketName == v8 then
-				t.Update()
-			else
-				t.InitToMarket(p1.MarketName)
-			end
-		end,
-		RegisterPurchase = function(p1) --[[ Line: 426 | Upvalues: t (ref) ]]
-			t.Update()
+end
+local rp = game:GetService("ReplicatedStorage")
+local buffModule = require(game.ReplicatedStorage.Modules:WaitForChild("BuffVisual"))
+local Players = game:GetService("Players")
+local animNPC = require(rp.Modules:WaitForChild("AnimateNPC"))
+local doorsModule = require(rp.Modules:WaitForChild("DoorModule"))
+doorsModule.Init()
+animNPC.Initiate()
+local questModule = require(rp.Modules:WaitForChild("QuestModule"))
+function loadEquipment(plr,equipment)
+	local tools = game.ReplicatedStorage.Assets.Tools
+	local bags = game.ReplicatedStorage.Assets.Bags
+	if equipment["Tool"] ~= "" then
+		local Tool = tools[equipment.Tool]:Clone()
+		Tool.Parent = plr.Backpack
+		for _,v in pairs(game.ServerStorage.ToolScripts:GetChildren()) do
+			v:Clone().Parent = Tool
 		end
+	end
+	if equipment["Bag"] ~= "" then
+		local Tool = bags[equipment.Bag]:Clone()
+		Tool.Parent = plr.Character
+		for _,v in pairs(game.ServerStorage.BagScripts:GetChildren()) do
+			v:Clone().Parent = Tool
+		end
+		plr.Cap.Value = items[equipment.Bag].Capacity
+		_G.PlayerData[plr.Name].Stats.Capacity = items[equipment.Bag].Capacity
+	end
+	if equipment["Boots"] ~= "" then
+		for i,v in pairs(rp.Assets.Boots[equipment.Boots]:GetChildren()) do
+			local Tool = v:Clone()
+			Tool.Parent = plr.Character
+		end
+		_G.PlayerData[plr.Name].GameBuffs.MovementCollection += (items[equipment.Boots].MovementCollection)
+		print(_G.PlayerData[plr.Name].GameBuffs.MovementCollection)
+	end
+end
+Players.PlayerAdded:Connect(function(plr)
+	_G.CurrentBuffs[plr.Name] = {}
+	_G.PlayerData[plr.Name] = {
+		Bosses = {
+			["Clover Field"] = {EndTime=0}
+		},
+		ShopDispenserPrice = {
+		["Basic Egg"] = 0	
+		},
+		["EquipmentOwned"] = {
+			["Scooper"] = true,
+			["Honey Hammer"] = false,
+			["Pouch"] = true,
+			["Basic Boots"] = false,
+			["Basic Sprinkler"] = false,
+			["Silver Soakers"] = false,
+			["Golden Gushers"] = false,
+			["Diamond Drenchers"] = false,
+			["The Supreme Saturator"] = false,
+		},
+		PlayerBuffs = {
+			ConvertionRate = 0,
+			InstantConvertionRate = 0
+		},
+		ActiveBuffs = {
+			["Science Enhancement"] = {Stack=0,TimeOfStart="never",EndTime="never"},
+		},
+		Stats = {
+			Honey = 0,
+			Pollen = 0,
+			Capacity = 100
+		},
+		Bees = {},
+		Quests = {},
+		Badges = {
+			["Honey Badge"] = {
+				["Rank"] = "Cadet",
+				["Collected"] = 0,
+				["Claimed"] = false,
+			}	
+		},
+		NPCData = {
+			["Black Bear"] = {Quests=1,Completed=false,Claimed=false}
+		},
+		GameBuffs = {
+			RedBoost = 0,
+			BlueBoost = 0,
+			WhiteBoost = 0,
+			WhiteHoney = 0,
+			BlueHoney = 0,
+			RedHoney = 0,
+			["MovementCollection"] = 0,
+			["PlayerMovespeed"] = 16,
+			["PlayerJumpPower"] = 50,
+			ConvertVisualGUIRate = 0
+		},
+		Inventory = {
+			["Basic Egg"] = 1,
+			["Vicious Bee Egg"] = 0,
+			["Mythic Egg"] = 0,
+			["Royal Jelly"] = 0,
+			["Eviction"] = 0,
+			["Ticket"] = 0,
+			["Treat"] = 0,
+			["Sunflower Seed"] = 0,
+			["Strawberry"] = 0,
+			["Blueberry"] = 0,
+			["Pineapple"] = 0,
+			["Sprinkler"] = 1,
+			["Gumdrops"] = 0,
+		},
+		Equipment = {
+			Tool = "Scooper",
+			Bag = "Pouch",
+			Boots = "",
+			Sprinkler = ""
+		},
+		BoxClaimed = {
+			["All Items"] = false,
+			["All Buffs"] = false
+		},
 	}
-
-	Events.ClientListen("BoostMarketEvent", function(p1) --[[ Line: 436 | Upvalues: t3 (copy) ]]
-		t3[p1.Action](p1)
+	local data = _G.PlayerData[plr.Name]
+	local Inventory = Instance.new("Folder",plr)
+	Inventory.Name = "Inventory"
+	local IsSaved = Instance.new("BoolValue",plr)
+	IsSaved.Name = "Saved"
+	IsSaved.Value = false
+	local MakingHoney = Instance.new("BoolValue",plr)
+	MakingHoney.Name = "MakingHoney"
+	MakingHoney.Value = false
+	local Honey = Instance.new("NumberValue",plr)
+	Honey.Name = "Honey"
+	Honey.Value = 0
+	local Pollen = Instance.new("NumberValue",plr)
+	Pollen.Name = "Pollen"
+	Pollen.Value = 0
+	local Cap = Instance.new("NumberValue",plr)
+	Cap.Name = "Cap"
+	Cap.Value = 0
+	local Field = Instance.new("StringValue",plr)
+	Field.Name = "Field"
+	Field.Value = ""
+	plr.PlayerGui:WaitForChild("Main"):WaitForChild("Loading").Visible = true
+	local Hive = Instance.new("ObjectValue",plr) Hive.Name = "Hive" Hive.Value = nil
+	local save = ds:GetAsync(plr.UserId)
+		if save then
+		for i,v in pairs(save.Stats) do
+			data.Stats[i] = v
+		end
+		for i,v in pairs(save.Bees) do
+			data.Bees[i] = v
+		end
+		for i,v in pairs(save.Inventory) do
+			data.Inventory[i] = v
+		end
+		for i,v in pairs(save.Equipment) do
+			data.Equipment[i] = v
+		end
+		if save.ActiveBuffs then
+			for i,v in pairs(save.ActiveBuffs) do
+				data.ActiveBuffs[i] = v
+			end
+		end
+		if save.BoxClaimed then
+			for i,v in pairs(save.BoxClaimed) do
+				data.BoxClaimed[i] = v
+			end
+		end
+		if save.Bosses then
+			for i,v in pairs(save.Bosses) do
+				data.Bosses[i] = v
+			end
+		end
+		if save.ShopDispenserPrice then
+			for i,v in pairs(save.ShopDispenserPrice) do
+				data.ShopDispenserPrice[i] = v
+			end
+		end
+		if save.Quests then
+			for i,v in pairs(save.Quests) do
+				data.Quests[i] = v
+			end
+		end
+		if save.Badges then
+			for i,v in pairs(save.Badges) do
+				data.Badges[i] = v
+			end
+		end
+		if save.NPCData then
+			for i,v in pairs(save.NPCData) do
+				data.NPCData[i] = v
+			end
+		end
+		if save.EquipmentOwned then
+			for i,v in pairs(save.EquipmentOwned) do
+				data.EquipmentOwned[i] = v
+			end
+		end
+	end
+	
+	
+	plr.CharacterAdded:Connect(function(char)
+		require(rp.Modules:WaitForChild("Utils")).LoadEquipment(plr)
+		PlrLoader.Load(plr,data.GameBuffs)
+		
 	end)
-end
+	plr:LoadCharacter()
+	for i,v in pairs(data.Quests) do
+		questModule.CreateQuestGUI(plr,v.Required,v.QuestName)
+	end
+	plr.PlayerGui:WaitForChild("Main"):WaitForChild("Loading").Visible = false
+	for e,v in pairs(data.Inventory) do
+		local val = Instance.new("IntValue",Inventory) val.Name = e val.Value = v
+	end
+	wait(1.5)
+	for i,v in pairs(data.ActiveBuffs) do
+		if v.Stack >= 1 then
+			for e = 1,v.Stack do
+				if e <= 1 then
+					buffModule.Create(plr,i,items[i].Clr,items[i].Icon,"")
+				else
+					buffModule.AddStack(plr,i,"")
+				end
+			end
+		end
+	end
+	--Updates 
+	for i,v in pairs(data.Bosses) do
+		if v.EndTime ~= 0 or v.EndTime >= os.time() then
+			rp.Remotes.RunFunctionClient:FireClient(plr,"AddTimerToMob",i)
+		end
+	end
+	
+	local char = plr.Character
+	while true do
+		Honey.Value = data.Stats.Honey
+		Pollen.Value = data.Stats.Pollen
+		Cap.Value = items[data.Equipment.Bag].Capacity
+		if MakingHoney.Value == true and Pollen.Value <= 0 then
+			MakingHoney.Value = false
+		end
+		if char and data.GameBuffs["MovementCollection"] > 1 and char.Humanoid.MoveDirection.Magnitude > 0 then
+			flowerModule.CreatePattern(plr,"Boots",char.PrimaryPart,1,"Boots",items[data.Equipment.Boots])
+		end
+		wait(0.5)
+	end
+end)
+--HiveClaimer--
+local hiveModule = require(game.ReplicatedStorage.Modules:WaitForChild("Hive"))
+rp.Remotes.ClaimHive.OnServerEvent:Connect(function(plr,hive)
+	if plr.Hive.Value == nil then
+		hiveModule.Claim(plr,hive)
+	end
+end)
+rp.Remotes.TalkToNPC.OnServerEvent:Connect(function(plr,NPC)
+	if workspace.QuestNPCS:FindFirstChild(NPC) then
+		questModule.Talk(plr,NPC)
+	end
+end)
+local Updater = require(game.ReplicatedStorage.Modules:WaitForChild("Update"))
+Players.PlayerRemoving:Connect(function(plr)
+	local save = ds:GetAsync(plr.UserId)
+	_G.CurrentBuffs[plr.Name] = nil
+	hiveModule.Reset(plr)
+	for i,v in pairs(workspace.Debris.Entity:GetChildren()) do
+		if v.Name == plr.Name then
+			v:Destroy()
+		end
+	end
+	if save ~= _G.PlayerData[plr.Name] and plr.Saved.Value == false then
+		plr.Saved.Value = true
+		ds:SetAsync(plr.UserId,_G.PlayerData[plr.Name])
+		print("Saved-Leaving")
+	end
+	_G.PlayerData[plr.Name] = nil
+	for _,v in pairs(workspace.Sprinklers:GetChildren()) do
+		if v:IsA("Model") and string.find(v.Name,plr.Name) then
+			v:Destroy()
+		end
+	end
+end)
 
-return t
+
+game:BindToClose(function()
+	task.wait(1)
+end)
+
+game.ReplicatedStorage.Remotes.OpenShop.OnServerEvent:Connect(function(plr,shop,interaction)
+	if game.ReplicatedStorage.Modules.Shops:FindFirstChild(shop) then
+		if interaction == true then
+			require(game.ReplicatedStorage.Modules.Shops:WaitForChild(shop)).Open(plr)
+		else
+			require(game.ReplicatedStorage.Modules.Shops:WaitForChild(shop)).Close(plr)
+		end
+	end
+end)
+local gumModule = require(rp.Modules:WaitForChild("Gumdrops"))
+local sprinklerModule = require(rp.Modules:WaitForChild("SprinklerModule"))
+local BeeModule = require(game.ReplicatedStorage.Modules:WaitForChild("BeeModule"))
+game.ReplicatedStorage.Remotes.UseItem.OnServerEvent:Connect(function(plr,item,target,amnt)
+	local data = _G.PlayerData[plr.Name]
+	if amnt == nil or amnt and amnt <= 0 then
+		amnt = 1
+	end
+	if data.Inventory[item] >= amnt then
+		if string.find(tostring(item),"Egg") then
+			if target and plr.Hive.Value ~= nil and target.Parent == plr.Hive.Value.Slots and target.Occupied.Value == false then
+				data.Inventory[item] -= amnt
+				BeeModule.NewBee(plr,target,item)
+			end
+		end
+		if item == "Sprinkler" then
+			if plr.Field.Value ~= "" then
+				data.Inventory[item] -= 0
+				sprinklerModule.New(plr,data.Equipment.Sprinkler)
+			end
+		end
+		if item == "Gumdrops" then
+			if plr.Field.Value ~= "" then
+				data.Inventory[item] -= 1
+				gumModule.SpawnGum(plr)
+			end
+		end
+		if item == "Treat" then
+			if target and plr.Hive.Value ~= nil and target.Parent.Parent.Parent == plr.Hive.Value.Slots and target.Parent.Parent.Occupied.Value == true then
+				local FeedUI = plr.PlayerGui.Main.FeedUI:Clone()
+				FeedUI.Parent = plr.PlayerGui.Main.FakeUI
+				FeedUI.Visible = true
+				FeedUI.Menu.TextLabel.Text = "How many "..item.." will you feed to "..target.Parent.Parent.Bee.Value.Name.."?"
+				FeedUI.Menu.Cancel.MouseButton1Click:Connect(function()
+					FeedUI:Destroy()
+				end)
+				if data.Inventory[item] < 50 then
+					FeedUI.Menu.Feed50.Visible = false
+				end
+				if data.Inventory[item] < 1 then
+					FeedUI.Menu.Feed1.Visible = false
+					FeedUI.Menu.FeedAll.Visible = false
+				end
+				FeedUI.Menu.Feed1.MouseButton1Click:Connect(function()
+					if data.Inventory[item] >= 1 then
+				data.Inventory[item] -= 1
+					BeeModule.Feed(plr,target.Parent.Parent,target.Parent.Parent.Bee.Value,items[item].Bond*1)
+					FeedUI:Destroy()
+						Updater.Inventory(plr)
+						end
+				end)
+				FeedUI.Menu.Feed50.MouseButton1Click:Connect(function()
+					if data.Inventory[item] >= 50 then
+					data.Inventory[item] -= 50
+					BeeModule.Feed(plr,target.Parent.Parent,target.Parent.Parent.Bee.Value,items[item].Bond*50)
+					FeedUI:Destroy()
+						Updater.Inventory(plr)
+						end
+				end)
+				FeedUI.Menu.FeedAll.MouseButton1Click:Connect(function()
+					if data.Inventory[item] >= 1 then
+					BeeModule.Feed(plr,target.Parent.Parent,target.Parent.Parent.Bee.Value,items[item].Bond*data.Inventory[item])
+					data.Inventory[item] = 0
+					FeedUI:Destroy()
+						Updater.Inventory(plr)
+						end
+				end)
+			end
+		end
+		if item == "Royal Jelly" then
+			if target and plr.Hive.Value ~= nil and target.Parent.Parent.Parent == plr.Hive.Value.Slots and target.Parent.Parent.Occupied.Value == true then
+				data.Inventory[item] -= amnt
+				BeeModule.ReplaceBee(plr,target.Parent.Parent,item)
+			end
+		end
+		if item == "Eviction" and plr.Hive.Value ~= nil then
+			if target and target.Parent.Parent.Parent == plr.Hive.Value.Slots and target.Parent.Parent.Occupied.Value == true then
+				data.Inventory[item] -= amnt
+				BeeModule.Evict(plr,target.Parent.Parent)
+			end
+		end
+		Updater.Inventory(plr)
+	end
+end)
+rp.Remotes.GetData.OnServerInvoke = function(plr)
+	return _G.PlayerData[plr.Name]
+end
+rp.Remotes.ModifyItemData.OnServerEvent:Connect(function(plr,item,amount)
+	local data = _G.PlayerData[plr.Name]
+	if amount >= 0 then
+		data.Inventory[item] += amount
+	end
+	Updater.Inventory(plr)
+end)
+rp.Remotes.MakeHoney.OnServerEvent:Connect(function(plr,make)
+	plr.MakingHoney.Value = make
+end)
+local cannonModule = require(rp.Modules:WaitForChild("CannonModule"))
+rp.Remotes.ShootCannon.OnServerEvent:Connect(function(plr,cannon)
+	cannonModule.Fire(plr,cannon)
+end)
